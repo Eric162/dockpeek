@@ -39,7 +39,8 @@ public struct Pose: Sendable {
   }
   return Pose(point: CGPoint(x: x, y: y), angle: (fromLeft ? -1 : 1) * 4 * .pi * t, squash: squash)
 }
-@Sendable public func entryStyle(badge: String, coveredBadge: String?, configured: String) -> String
+@Sendable public func entryStyle(badge: String, coveredBadge: String?, configured: EntryAnimation)
+  -> EntryAnimation
 {
-  coveredBadge == badge ? "slide" : configured
+  coveredBadge == badge ? .slide : configured
 }

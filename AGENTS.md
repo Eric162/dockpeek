@@ -8,3 +8,6 @@ Use Conventional Commits for commits and PR titles. Keep responses brief.
 
 For Swift changes and quality-tool maintenance, read
 [the DockPeek Swift skill](.agents/skills/dockpeek-swift/SKILL.md).
+
+For release verification or CPU/memory investigations, read
+[the verification skill](.agents/skills/verify-dockpeek/SKILL.md).

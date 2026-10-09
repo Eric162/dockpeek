@@ -13,4 +13,4 @@ mkdir -p .build/reports
 cp "$(swift test --show-codecov-path)" .build/reports/coverage.json
 python3 scripts/check_coverage.py .build/reports/coverage.json
 ./scripts/analyze.sh
-python3 -c 'import ast, pathlib; ast.parse(pathlib.Path("scripts/package_app.py").read_text())'
+python3 -c 'import ast, pathlib; [ast.parse(p.read_text(), filename=str(p)) for p in pathlib.Path("scripts").rglob("*.py")]'

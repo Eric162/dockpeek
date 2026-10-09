@@ -31,8 +31,10 @@ struct CoreTests {
     #expect(!config.isValid)
     config.allowedApps = []
     #expect(config.isValid)
-    config.dismissAnimation = "tumble"
-    #expect(!config.isValid)
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(
+        Configuration.self, from: Data(#"{"dismissAnimation":"tumble"}"#.utf8))
+    }
     #expect(throws: DecodingError.self) {
       try JSONDecoder().decode(Configuration.self, from: Data(#"{"enabled":1}"#.utf8))
     }
@@ -56,8 +58,10 @@ struct CoreTests {
     config.tumbleDuration = .infinity
     #expect(!(config.isValid))
     config.tumbleDuration = 1.4
-    config.entryAnimation = "invalid"
-    #expect(!(config.isValid))
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(
+        Configuration.self, from: Data(#"{"entryAnimation":"invalid"}"#.utf8))
+    }
   }
 
   @Test
@@ -104,8 +108,8 @@ struct CoreTests {
 
   @Test
   func testDockReturnSlidesAndNewBadgesUseConfiguredAnimation() {
-    #expect(entryStyle(badge: "3", coveredBadge: "3", configured: "tumble") == "slide")
-    #expect(entryStyle(badge: "8", coveredBadge: "3", configured: "tumble") == "tumble")
+    #expect(entryStyle(badge: "3", coveredBadge: "3", configured: .tumble) == .slide)
+    #expect(entryStyle(badge: "8", coveredBadge: "3", configured: .tumble) == .tumble)
   }
 
   @Test

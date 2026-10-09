@@ -6,8 +6,9 @@ description: Implement and verify DockPeek Swift changes, or maintain its compil
 # DockPeek Swift development
 
 Read `Package.swift`, `Makefile`, and the relevant target before editing. Keep shared
-configuration, geometry, and snapshot parsing in `DockPeekCore`; keep UI and
-process lifecycle in the executable targets.
+configuration, geometry, snapshot parsing, and pure worker decisions in
+`DockPeekCore`. Keep bounded subprocess I/O in `DockPeekRuntime` and AppKit
+rendering in the worker executable.
 
 Swift 6 mode enforces concurrency checking. Keep AppKit and SwiftUI state on the
 main actor. Timer callbacks currently enter through `MainActor.assumeIsolated`

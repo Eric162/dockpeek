@@ -16,10 +16,13 @@ let package = Package(
   ],
   targets: [
     .target(name: "DockPeekCore", swiftSettings: strictSettings),
+    .target(name: "DockPeekRuntime", dependencies: ["DockPeekCore"], swiftSettings: strictSettings),
     .executableTarget(
-      name: "DockPeekSettings", dependencies: ["DockPeekCore"], swiftSettings: strictSettings),
+      name: "DockPeekSettings", dependencies: ["DockPeekCore", "DockPeekRuntime"],
+      swiftSettings: strictSettings),
     .executableTarget(
-      name: "DockPeekWorker", dependencies: ["DockPeekCore"], swiftSettings: strictSettings),
+      name: "DockPeekWorker", dependencies: ["DockPeekCore", "DockPeekRuntime"],
+      swiftSettings: strictSettings),
     .executableTarget(name: "DockTileProbe", swiftSettings: strictSettings),
     .executableTarget(
       name: "DockBounceFilter", path: "Experiments/BounceFilter", swiftSettings: strictSettings),
@@ -28,7 +31,7 @@ let package = Package(
     .executableTarget(
       name: "BounceFixture", path: "Experiments/BounceFixture", swiftSettings: strictSettings),
     .testTarget(
-      name: "DockPeekTests", dependencies: ["DockPeekCore", "DockPeekSettings"],
+      name: "DockPeekTests", dependencies: ["DockPeekCore", "DockPeekRuntime", "DockPeekSettings"],
       swiftSettings: strictSettings),
   ],
   swiftLanguageModes: [.v6]

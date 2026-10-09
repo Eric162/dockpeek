@@ -1,5 +1,6 @@
 import AppKit
 import DockPeekCore
+import DockPeekRuntime
 import ServiceManagement
 import SwiftUI
 import UniformTypeIdentifiers
@@ -83,8 +84,7 @@ final class SettingsModel: ObservableObject {
     }
   }
   init(
-    root: URL = FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent("Library/Application Support/Dock Peek")
+    root: URL = RuntimePaths.root()
   ) {
     self.root = root
     do {
@@ -188,24 +188,24 @@ struct SettingsView: View {
           }
           VStack(alignment: .leading, spacing: 10) {
             Picker("Entry", selection: $model.config.entryAnimation) {
-              Text("Slide up").tag("slide")
-              Text("Tumble").tag("tumble")
-              Text("None").tag("none")
+              Text("Slide up").tag(EntryAnimation.slide)
+              Text("Tumble").tag(EntryAnimation.tumble)
+              Text("None").tag(EntryAnimation.none)
             }
-            if model.config.entryAnimation == "tumble" {
+            if model.config.entryAnimation == .tumble {
               durationRow("Duration", value: $model.config.tumbleDuration, range: 0.5...3)
                 .padding(.leading, 20)
-            } else if model.config.entryAnimation == "slide" {
+            } else if model.config.entryAnimation == .slide {
               durationRow("Duration", value: $model.config.slideDuration, range: 0.1...1)
                 .padding(.leading, 20)
             }
           }
           VStack(alignment: .leading, spacing: 10) {
             Picker("Dismissal", selection: $model.config.dismissAnimation) {
-              Text("Slide down").tag("slide")
-              Text("None").tag("none")
+              Text("Slide down").tag(DismissAnimation.slide)
+              Text("None").tag(DismissAnimation.none)
             }
-            if model.config.dismissAnimation == "slide" {
+            if model.config.dismissAnimation == .slide {
               durationRow("Duration", value: $model.config.dismissDuration, range: 0.1...1)
                 .padding(.leading, 20)
             }
@@ -255,14 +255,20 @@ struct SettingsView: View {
 @MainActor
 final class SettingsAppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
+    if RuntimePaths.isVerification(RuntimePaths.root()),
+      let index = CommandLine.arguments.firstIndex(of: "--verify-quit-after"),
+      CommandLine.arguments.indices.contains(index + 1),
+      let seconds = Double(CommandLine.arguments[index + 1]), seconds > 0
+    {
+      DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { NSApp.terminate(nil) }
+    }
     let event = NSAppleEventManager.shared().currentAppleEvent
     let login =
       event?.paramDescriptor(forKeyword: AEKeyword(keyAEPropData))?
       .paramDescriptor(forKeyword: AEKeyword(keyAELaunchedAsLogInItem))?.booleanValue == true
     if login || CommandLine.arguments.contains("--login-start") {
       let background = BackgroundService(
-        root: FileManager.default.homeDirectoryForCurrentUser
-          .appendingPathComponent("Library/Application Support/Dock Peek"))
+        root: RuntimePaths.root())
       background.prepare()
       if background.message.isEmpty {
         for window in NSApp.windows { window.orderOut(nil) }
@@ -277,8 +283,7 @@ struct DockPeekSettingsApp: App {
   @NSApplicationDelegateAdaptor(SettingsAppDelegate.self) private var delegate
   @StateObject private var model = SettingsModel()
   @StateObject private var background = BackgroundService(
-    root: FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent("Library/Application Support/Dock Peek"))
+    root: RuntimePaths.root())
   var body: some Scene {
     WindowGroup("Dock Peek") { SettingsView(model: model, background: background) }
       .defaultSize(width: 500, height: 860)

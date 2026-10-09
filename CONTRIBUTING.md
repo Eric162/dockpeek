@@ -7,13 +7,13 @@ Before submitting changes, run:
 ```sh
 make bootstrap
 make format
-make check
-make sanitize
-make app
+make verify
+make performance
 ```
 
 Keep AppKit and SwiftUI lifecycle code in their respective executable targets.
-Shared configuration, geometry, and parsing belong in `DockPeekCore`. Add tests
+Shared configuration, geometry, parsing, and worker decisions belong in
+`DockPeekCore`; bounded subprocess execution belongs in `DockPeekRuntime`. Add tests
 when changing behavior and include manual evidence for Dock interactions that
 cannot be exercised by the unit tests.
 
@@ -29,8 +29,10 @@ Homebrew packages are changed.
 with warnings as errors, Swift Testing with a 100% core line coverage gate, and
 SwiftLint compiler-based unused-import analysis. Reports live in `.build/reports`.
 `make sanitize` runs the tests separately under AddressSanitizer and ThreadSanitizer.
-These tools exercise tested paths; Dock rendering and login behavior need manual
-verification. Experiments receive the same compiler and lint checks as app code.
+`make integration` checks the signed packaged app with isolated synthetic
+fixtures; `make performance` checks resource budgets and timer/icon invariants.
+Physical Dock rendering and real login behavior use
+[the manual checklist](docs/manual-verification.md). Experiments receive the same compiler and lint checks as app code.
 
 The pre-commit hook runs `make check`. Stage or stash all changes before a
 commit so the checked working tree matches the index. The commit-msg hook requires
@@ -41,4 +43,5 @@ maximum subject length of 72 characters. Supported types are defined in
 packaging. Hooks can be bypassed by Git; server-side required checks need GitHub
 branch rules configured separately.
 
-Project agent guidance is in `AGENTS.md` and `.agents/skills/dockpeek-swift`.
+Project agent guidance is in `AGENTS.md`, `.agents/skills/dockpeek-swift`, and
+[the verification skill](.agents/skills/verify-dockpeek/SKILL.md).

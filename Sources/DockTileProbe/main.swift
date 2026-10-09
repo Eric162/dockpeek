@@ -1,6 +1,25 @@
 import AppKit
 @preconcurrency import ApplicationServices
 
+// Isolated integration fixtures use the same executable and subprocess path.
+if let index = CommandLine.arguments.firstIndex(of: "--verify-root"),
+  CommandLine.arguments.indices.contains(index + 1)
+{
+  let root = URL(fileURLWithPath: CommandLine.arguments[index + 1])
+  guard
+    FileManager.default.fileExists(
+      atPath: root.appendingPathComponent(".dockpeek-verification").path)
+  else { exit(1) }
+  let mode = try? String(contentsOf: root.appendingPathComponent("probe-mode"), encoding: .utf8)
+  if mode == "hang" { Thread.sleep(forTimeInterval: 30) }
+  if mode == "fail" { exit(3) }
+  guard
+    let text = try? String(contentsOf: root.appendingPathComponent("snapshot.txt"), encoding: .utf8)
+  else { exit(1) }
+  print(text)
+  exit(0)
+}
+
 if CommandLine.arguments.contains("--request-access") {
   let options =
     [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]

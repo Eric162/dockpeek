@@ -6,11 +6,7 @@ cd "$(dirname "$0")/.."
 scratch=.build/analysis
 mkdir -p .build/reports
 swift package --scratch-path "$scratch" clean
-swift build --scratch-path "$scratch" --verbose > .build/reports/compiler.log 2>&1 || {
-  cat .build/reports/compiler.log >&2
-  exit 1
-}
-./scripts/test.sh --scratch-path "$scratch" --verbose >> .build/reports/compiler.log 2>&1 || {
+./scripts/test.sh --scratch-path "$scratch" --verbose > .build/reports/compiler.log 2>&1 || {
   cat .build/reports/compiler.log >&2
   exit 1
 }

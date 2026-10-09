@@ -15,8 +15,19 @@ public struct Tile: Sendable {
   public let badge: String?
   public let rect: CGRect
 }
+private let snapshotExpressions: [String: NSRegularExpression] = {
+  let patterns = [
+    "AXTitle=([^\\n]+)", "AXURL=([^\\n]+)", "AXStatusLabel=([^\\n]+)",
+    "AXFrame=.*value = x:([0-9.-]+) y:([0-9.-]+) w:([0-9.-]+) h:([0-9.-]+)",
+  ]
+  return Dictionary(
+    uniqueKeysWithValues: patterns.compactMap { pattern in
+      (try? NSRegularExpression(pattern: pattern)).map { (pattern, $0) }
+    })
+}()
+
 @Sendable func match(_ pattern: String, _ text: String) -> [String]? {
-  guard let regex = try? NSRegularExpression(pattern: pattern),
+  guard let regex = snapshotExpressions[pattern] ?? (try? NSRegularExpression(pattern: pattern)),
     let found = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text))
   else {
     return nil

@@ -1,9 +1,17 @@
-public struct Configuration: Codable {
+public enum EntryAnimation: String, Codable, CaseIterable, Sendable {
+  case slide, tumble, none
+}
+
+public enum DismissAnimation: String, Codable, CaseIterable, Sendable {
+  case slide, none
+}
+
+public struct Configuration: Codable, Sendable {
   public var enabled = true
   public var allowedApps = ["com.openai.codex", "com.anysphere.sand"]
   public var peekFraction = 1.0 / 3
-  public var entryAnimation = "tumble"
-  public var dismissAnimation = "slide"
+  public var entryAnimation = EntryAnimation.tumble
+  public var dismissAnimation = DismissAnimation.slide
   public var slideDuration = 0.35
   public var dismissDuration = 0.25
   public var tumbleDuration = 1.4
@@ -25,9 +33,10 @@ public struct Configuration: Codable {
     allowedApps = try values.decodeIfPresent([String].self, forKey: .allowedApps) ?? allowedApps
     peekFraction = try values.decodeIfPresent(Double.self, forKey: .peekFraction) ?? peekFraction
     entryAnimation =
-      try values.decodeIfPresent(String.self, forKey: .entryAnimation) ?? entryAnimation
+      try values.decodeIfPresent(EntryAnimation.self, forKey: .entryAnimation) ?? entryAnimation
     dismissAnimation =
-      try values.decodeIfPresent(String.self, forKey: .dismissAnimation) ?? dismissAnimation
+      try values.decodeIfPresent(DismissAnimation.self, forKey: .dismissAnimation)
+      ?? dismissAnimation
     slideDuration = try values.decodeIfPresent(Double.self, forKey: .slideDuration) ?? slideDuration
     dismissDuration =
       try values.decodeIfPresent(Double.self, forKey: .dismissDuration) ?? dismissDuration
@@ -45,8 +54,6 @@ public struct Configuration: Codable {
   }
   public var isValid: Bool {
     peekFraction > 0 && peekFraction <= 1
-      && ["slide", "tumble", "none"].contains(entryAnimation)
-      && ["slide", "none"].contains(dismissAnimation)
       && [slideDuration, dismissDuration, tumbleDuration].allSatisfy { $0.isFinite && $0 > 0 }
       && allowedApps.allSatisfy { !$0.isEmpty }
   }

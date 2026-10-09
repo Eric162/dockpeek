@@ -1,41 +1,59 @@
 import Darwin
 import DockPeekCore
+import DockPeekRuntime
 import ServiceManagement
 
 @MainActor
-final class BackgroundService: ObservableObject {
-  static let plistName = "local.dock-peek.worker.plist"
-  @Published var launchAtLogin = false
-  @Published var requiresApproval = false
-  @Published var busy = false
-  @Published var message = ""
-  let root: URL
-  let service = SMAppService.mainApp
+protocol LoginManaging {
+  var status: SMAppService.Status { get }
+  func register() throws
+  func unregister() async throws
+  func migrateLegacyAgent() async throws
+  func openApprovalSettings()
+}
+
+@MainActor
+struct SystemLoginManager: LoginManaging {
+  var status: SMAppService.Status { SMAppService.mainApp.status }
+  func register() throws { try SMAppService.mainApp.register() }
+  func unregister() async throws { try await SMAppService.mainApp.unregister() }
+  func migrateLegacyAgent() async throws {
+    let legacy = SMAppService.agent(plistName: "local.dock-peek.worker.plist")
+    if legacy.status != .notRegistered { try await legacy.unregister() }
+  }
+  func openApprovalSettings() { SMAppService.openSystemSettingsLoginItems() }
+}
+
+// Verification launches use isolated storage and never alter Login Items.
+@MainActor
+struct VerificationLoginManager: LoginManaging {
+  var status: SMAppService.Status { .notRegistered }
+  func register() throws { throw CocoaError(.featureUnsupported) }
+  func unregister() throws {}
+  func migrateLegacyAgent() throws {}
+  func openApprovalSettings() {}
+}
+
+@MainActor
+protocol WorkerLaunching {
+  var workerURL: URL { get }
+  func workerPID(root: URL) -> pid_t?
+  func launch(root: URL) throws
+}
+
+@MainActor
+struct BundledWorkerLauncher: WorkerLaunching {
+  let bundle: URL
   var workerURL: URL {
-    Bundle.main.bundleURL.appendingPathComponent(
+    bundle.appendingPathComponent(
       "Contents/Library/LoginItems/DockPeekWorker.app/Contents/MacOS/DockPeekWorker")
   }
-  init(root: URL) {
-    self.root = root
-    refresh()
-  }
-  func migrateLegacyAgent() async {
-    let legacy = SMAppService.agent(plistName: Self.plistName)
-    if legacy.status != .notRegistered {
-      do { try await legacy.unregister() } catch {
-        message = "Could not migrate background service: \(error.localizedDescription)"
-      }
-    }
-  }
-  func refresh() {
-    launchAtLogin = service.status == .enabled || service.status == .requiresApproval
-    requiresApproval = service.status == .requiresApproval
-  }
-  var workerPID: pid_t? {
+  func workerPID(root: URL) -> pid_t? {
     guard
       let text = try? String(
         contentsOf: root.appendingPathComponent("worker.pid"), encoding: .utf8),
-      let pid = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)), kill(pid, 0) == 0
+      let pid = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)), pid > 0,
+      kill(pid, 0) == 0
     else { return nil }
     var path = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
     guard proc_pidpath(pid, &path, UInt32(path.count)) > 0,
@@ -44,40 +62,85 @@ final class BackgroundService: ObservableObject {
     else { return nil }
     return pid
   }
+  func launch(root: URL) throws {
+    let process = Process()
+    process.executableURL = workerURL
+    process.arguments = ["--installed"]
+    if RuntimePaths.isVerification(root) {
+      process.arguments = ["--installed", "--verify-root", root.path]
+    }
+    let output = try logHandle(root.appendingPathComponent("overlay.log"))
+    defer { try? output.close() }
+    let errors = try logHandle(root.appendingPathComponent("overlay-error.log"))
+    defer { try? errors.close() }
+    process.standardOutput = output
+    process.standardError = errors
+    process.standardInput = FileHandle.nullDevice
+    try process.run()
+  }
+  private func logHandle(_ url: URL) throws -> FileHandle {
+    if !FileManager.default.fileExists(atPath: url.path) {
+      guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
+        throw CocoaError(.fileWriteUnknown)
+      }
+    }
+    let handle = try FileHandle(forWritingTo: url)
+    do { try handle.seekToEnd() } catch {
+      try? handle.close()
+      throw error
+    }
+    return handle
+  }
+}
+
+@MainActor
+final class BackgroundService: ObservableObject {
+  @Published var launchAtLogin = false
+  @Published var requiresApproval = false
+  @Published var busy = false
+  @Published var message = ""
+  let root: URL
+  private let login: any LoginManaging
+  private let launcher: any WorkerLaunching
+  private let bundle: URL
+
+  init(
+    root: URL, login: (any LoginManaging)? = nil,
+    launcher: (any WorkerLaunching)? = nil, bundle: URL = Bundle.main.bundleURL
+  ) {
+    self.root = root
+    self.bundle = bundle
+    self.login =
+      login
+      ?? (RuntimePaths.isVerification(root)
+        ? VerificationLoginManager() : SystemLoginManager())
+    self.launcher = launcher ?? BundledWorkerLauncher(bundle: bundle)
+    refresh()
+  }
+  func migrateLegacyAgent() async {
+    do { try await login.migrateLegacyAgent() } catch {
+      message = "Could not migrate background service: \(error.localizedDescription)"
+    }
+  }
+  func refresh() {
+    launchAtLogin = login.status == .enabled || login.status == .requiresApproval
+    requiresApproval = login.status == .requiresApproval
+  }
   func ensureWorker() throws {
     try FileManager.default.createDirectory(
       at: root.appendingPathComponent(".build"), withIntermediateDirectories: true)
     let probe = root.appendingPathComponent(".build/Dock Tile Probe.app")
     if !FileManager.default.fileExists(atPath: probe.path) {
       try FileManager.default.copyItem(
-        at: Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/Dock Tile Probe.app"),
-        to: probe)
+        at: bundle.appendingPathComponent("Contents/Resources/Dock Tile Probe.app"), to: probe)
     }
     let configURL = root.appendingPathComponent("peek-config.json")
     if !FileManager.default.fileExists(atPath: configURL.path) {
       try JSONEncoder().encode(Configuration()).write(to: configURL, options: .atomic)
     }
     refresh()
-    guard workerPID == nil, !requiresApproval else { return }
-    let process = Process()
-    process.executableURL = workerURL
-    process.arguments = ["--installed"]
-    for name in ["overlay.log", "overlay-error.log"] {
-      let path = root.appendingPathComponent(name).path
-      if !FileManager.default.fileExists(atPath: path) {
-        FileManager.default.createFile(atPath: path, contents: nil)
-      }
-    }
-    let output = try FileHandle(forWritingTo: root.appendingPathComponent("overlay.log"))
-    let errors = try FileHandle(forWritingTo: root.appendingPathComponent("overlay-error.log"))
-    try output.seekToEnd()
-    try errors.seekToEnd()
-    process.standardOutput = output
-    process.standardError = errors
-    process.standardInput = FileHandle.nullDevice
-    try process.run()
-    try output.close()
-    try errors.close()
+    guard launcher.workerPID(root: root) == nil, !requiresApproval else { return }
+    try launcher.launch(root: root)
   }
   func prepare() {
     do { try ensureWorker() } catch {
@@ -93,22 +156,20 @@ final class BackgroundService: ObservableObject {
     }
     do {
       if enabled {
-        if service.status == .enabled {
+        if login.status == .enabled {
           try ensureWorker()
           return
         }
-        if service.status == .requiresApproval {
-          SMAppService.openSystemSettingsLoginItems()
+        if login.status == .requiresApproval {
+          login.openApprovalSettings()
           return
         }
-        try service.register()
-        try ensureWorker()
-        message = "Saved."
-      } else {
-        if service.status != .notRegistered { try await service.unregister() }
-        try ensureWorker()
-        message = "Saved."
+        try login.register()
+      } else if login.status != .notRegistered {
+        try await login.unregister()
       }
+      try ensureWorker()
+      message = "Saved."
     } catch {
       message = "Could not change login setting: \(error.localizedDescription)"
       try? ensureWorker()

@@ -34,8 +34,10 @@ jobs:
           fi
       - name: Format, lint, debug and release builds, coverage, analysis
         run: make check
-      - name: Package and verify signed app
-        run: make app
+      - name: Package, verify signatures, and test app integration
+        run: make integration
+      - name: CPU, memory, and idle timer budgets
+        run: python3 scripts/performance.py --seconds 3 --gate --output .build/reports/performance
       - name: Upload analysis and coverage reports
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

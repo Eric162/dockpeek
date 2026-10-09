@@ -1,4 +1,4 @@
-.PHONY: bootstrap check lint format build test analyze sanitize app
+.PHONY: bootstrap check lint format build test analyze sanitize app integration performance verify
 bootstrap:
 	./scripts/bootstrap.sh
 check:
@@ -17,3 +17,11 @@ sanitize:
 	./scripts/sanitize.sh
 app:
 	./scripts/build-app.sh
+integration: app
+	python3 scripts/integration.py
+performance: app
+	python3 scripts/performance.py --gate
+verify:
+	$(MAKE) check
+	$(MAKE) sanitize
+	$(MAKE) integration

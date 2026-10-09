@@ -156,3 +156,13 @@ and logs are preserved locally under `Artifacts/Prototype`, which is ignored by 
 ## License
 
 A license has not been selected yet.
+
+## Quality verification
+
+Run `make verify` for formatting/lint checks, builds, coverage, static analysis,
+sanitizers, and packaged lifecycle integration. Run `make performance` for
+repeatable synthetic CPU and memory budgets.
+
+See [verification evidence](docs/quality-verification.md),
+[manual checks](docs/manual-verification.md), and the
+[agent verification skill](.agents/skills/verify-dockpeek/SKILL.md).

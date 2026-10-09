@@ -1,6 +1,6 @@
 import Foundation
 
-public struct PeekTestRequest: Codable {
+public struct PeekTestRequest: Codable, Sendable {
   public let bundleIdentifier: String
   public let applicationPath: String
   public let expiresAt: Date
@@ -12,5 +12,6 @@ public struct PeekTestRequest: Codable {
     expiresAt = now.addingTimeInterval(10)
     token = UUID().uuidString
   }
-  public var isActive: Bool { expiresAt > Date() }
+  public var isActive: Bool { isActive(at: Date()) }
+  public func isActive(at now: Date) -> Bool { expiresAt > now }
 }
