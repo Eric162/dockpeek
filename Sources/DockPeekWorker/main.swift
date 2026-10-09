@@ -48,15 +48,25 @@ else {
 // A lock prevents a session worker and a registered login worker from overlapping.
 var workerLock: Int32 = -1
 if installed {
-  try! FileManager.default.createDirectory(
-    at: root.appendingPathComponent(".build"), withIntermediateDirectories: true)
+  do {
+    try FileManager.default.createDirectory(
+      at: root.appendingPathComponent(".build"), withIntermediateDirectories: true)
+  } catch {
+    fputs("Cannot create worker directory: \(error)\n", stderr)
+    exit(1)
+  }
   workerLock = open(
     root.appendingPathComponent("worker.lock").path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
   guard workerLock >= 0, flock(workerLock, LOCK_EX | LOCK_NB) == 0 else { exit(0) }
   freopen(root.appendingPathComponent("overlay.log").path, "a", stdout)
   freopen(root.appendingPathComponent("overlay-error.log").path, "a", stderr)
-  try! String(getpid()).write(
-    to: root.appendingPathComponent("worker.pid"), atomically: true, encoding: .utf8)
+  do {
+    try String(getpid()).write(
+      to: root.appendingPathComponent("worker.pid"), atomically: true, encoding: .utf8)
+  } catch {
+    fputs("Cannot write worker PID: \(error)\n", stderr)
+    exit(1)
+  }
 }
 final class IconView: NSView {
   var image: NSImage?
@@ -209,19 +219,7 @@ enum Worker {
     }
     var allowed = config.enabled ? (allowedOverride ?? Set(config.allowedApps)) : []
     if let test { allowed.insert(test.bundleIdentifier) }
-    let snapshotURL = root.appendingPathComponent(".build/peek-snapshot-\(getpid()).txt")
-    try! Data().write(to: snapshotURL)
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-    process.arguments = [
-      "-W", "-g", "-n", "--stdout", snapshotURL.path,
-      "--stderr", root.appendingPathComponent(".build/peek-probe-error.txt").path,
-      root.appendingPathComponent(".build/Dock Tile Probe.app").path,
-    ]
-    try! process.run()
-    process.waitUntilExit()
-    guard let snapshot = try? String(contentsOf: snapshotURL, encoding: .utf8), !snapshot.isEmpty
-    else { return }
+    guard let snapshot = readSnapshot() else { return }
     let primaryHeight = NSScreen.screens.first?.frame.maxY ?? 0
     var visible: Set<String> = []
     var dockTiles = tiles(snapshot)
@@ -237,85 +235,128 @@ enum Worker {
       )
     }
     for tile in dockTiles where allowed.contains(tile.bundle) {
-      let testing = test?.bundleIdentifier == tile.bundle
-      let badge = testing ? "3" : (demo ? "3" : tile.badge ?? "")
-      let badgeKey = testing ? "test-\(test!.token)" : badge
-      if badge.isEmpty {
-        dismissed.removeValue(forKey: tile.bundle)
-        dockCovered.removeValue(forKey: tile.bundle)
-        continue
+      if update(tile, test: test, primaryHeight: primaryHeight) {
+        visible.insert(tile.bundle)
       }
-      if let previous = dismissed[tile.bundle], previous != badgeKey {
-        dismissed.removeValue(forKey: tile.bundle)
-      }
-      if dismissed[tile.bundle] == badgeKey { continue }
-      let center = NSPoint(x: tile.rect.midX, y: primaryHeight - tile.rect.midY)
-      guard
-        let screen = NSScreen.screens.min(by: {
-          hypot($0.frame.midX - center.x, $0.frame.midY - center.y)
-            < hypot($1.frame.midX - center.x, $1.frame.midY - center.y)
-        })
-      else { continue }
-      let screenAX = CGRect(
-        x: screen.frame.minX, y: primaryHeight - screen.frame.maxY, width: screen.frame.width,
-        height: screen.frame.height)
-      guard !simulatedDockVisible, !screenAX.intersects(tile.rect.insetBy(dx: 2, dy: 2)) else {
-        dockCovered[tile.bundle] = badge
-        continue
-      }
-      visible.insert(tile.bundle)
-      let presentation = presentations[tile.bundle] ?? Presentation(name: tile.name)
-      presentation.view.image = NSWorkspace.shared.icon(forFile: tile.url.path)
-      presentation.view.badge = badge
-      presentation.view.needsDisplay = true
-      if presentation.badge != badge { log("BADGE \(tile.bundle)=\(badge)") }
-      presentation.badge = badge
-      let dismiss: () -> Void = { [weak presentation] in
-        guard let presentation else { return }
-        dismissed[tile.bundle] = badgeKey
-        presentation.hide()
-      }
-      presentation.view.onClick = {
-        guard config.openAppOnClick else { return }
-        log("OPEN \(tile.bundle)")
-        dismiss()
-        let options = NSWorkspace.OpenConfiguration()
-        options.activates = true
-        NSWorkspace.shared.openApplication(at: tile.url, configuration: options) { app, error in
-          if let error {
-            log("OPEN-FAILED \(tile.bundle): \(error.localizedDescription)")
-          } else {
-            log("OPENED \(app?.bundleIdentifier ?? tile.bundle)")
-          }
-        }
-      }
-      presentation.view.onScrollDown = {
-        guard config.scrollDismisses else { return }
-        log("SCROLL-DISMISS \(tile.bundle)")
-        dismiss()
-      }
-      presentation.view.onRightClick = {
-        guard config.rightClickDismisses else { return }
-        log("RIGHT-CLICK-DISMISS \(tile.bundle)")
-        dismiss()
-      }
-      let x = min(max(tile.rect.midX - 64, screen.frame.minX), screen.frame.maxX - panelSize)
-      let target = CGPoint(
-        x: x, y: restingY(edge: screen.frame.minY, fraction: config.peekFraction))
-      if presentation.phase == "hidden" || presentation.phase == "exiting" {
-        let animation = entryStyle(
-          badge: badge, coveredBadge: dockCovered[tile.bundle], configured: config.entryAnimation)
-        presentation.show(at: target, screen: screen.frame, animation: animation)
-        dockCovered.removeValue(forKey: tile.bundle)
-      } else {
-        presentation.target = target
-      }
-      presentations[tile.bundle] = presentation
     }
     for (bundle, presentation) in presentations where !visible.contains(bundle) {
       presentation.hide()
     }
   }
+
+  private static func readSnapshot() -> String? {
+    let snapshotURL = root.appendingPathComponent(".build/peek-snapshot-\(getpid()).txt")
+    do {
+      try Data().write(to: snapshotURL)
+    } catch {
+      log("Cannot initialize probe snapshot: \(error)")
+      return nil
+    }
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+    process.arguments = [
+      "-W", "-g", "-n", "--stdout", snapshotURL.path,
+      "--stderr", root.appendingPathComponent(".build/peek-probe-error.txt").path,
+      root.appendingPathComponent(".build/Dock Tile Probe.app").path,
+    ]
+    do {
+      try process.run()
+    } catch {
+      log("Cannot launch Dock probe: \(error)")
+      return nil
+    }
+    process.waitUntilExit()
+    guard let snapshot = try? String(contentsOf: snapshotURL, encoding: .utf8), !snapshot.isEmpty
+    else { return nil }
+    return snapshot
+  }
+
+  private static func update(_ tile: Tile, test: PeekTestRequest?, primaryHeight: Double) -> Bool {
+    let testing = test?.bundleIdentifier == tile.bundle
+    let badge = testing ? "3" : (demo ? "3" : tile.badge ?? "")
+    let badgeKey: String
+    if let test, testing {
+      badgeKey = "test-\(test.token)"
+    } else {
+      badgeKey = badge
+    }
+    if badge.isEmpty {
+      dismissed.removeValue(forKey: tile.bundle)
+      dockCovered.removeValue(forKey: tile.bundle)
+      return false
+    }
+    if let previous = dismissed[tile.bundle], previous != badgeKey {
+      dismissed.removeValue(forKey: tile.bundle)
+    }
+    if dismissed[tile.bundle] == badgeKey { return false }
+    let center = NSPoint(x: tile.rect.midX, y: primaryHeight - tile.rect.midY)
+    guard
+      let screen = NSScreen.screens.min(by: {
+        hypot($0.frame.midX - center.x, $0.frame.midY - center.y)
+          < hypot($1.frame.midX - center.x, $1.frame.midY - center.y)
+      })
+    else { return false }
+    let screenAX = CGRect(
+      x: screen.frame.minX, y: primaryHeight - screen.frame.maxY, width: screen.frame.width,
+      height: screen.frame.height)
+    guard !simulatedDockVisible, !screenAX.intersects(tile.rect.insetBy(dx: 2, dy: 2)) else {
+      dockCovered[tile.bundle] = badge
+      return false
+    }
+    present(tile, badge: badge, badgeKey: badgeKey, screen: screen)
+    return true
+  }
+
+  private static func present(_ tile: Tile, badge: String, badgeKey: String, screen: NSScreen) {
+    let presentation = presentations[tile.bundle] ?? Presentation(name: tile.name)
+    presentation.view.image = NSWorkspace.shared.icon(forFile: tile.url.path)
+    presentation.view.badge = badge
+    presentation.view.needsDisplay = true
+    if presentation.badge != badge { log("BADGE \(tile.bundle)=\(badge)") }
+    presentation.badge = badge
+    let dismiss: () -> Void = { [weak presentation] in
+      guard let presentation else { return }
+      dismissed[tile.bundle] = badgeKey
+      presentation.hide()
+    }
+    presentation.view.onClick = {
+      guard config.openAppOnClick else { return }
+      log("OPEN \(tile.bundle)")
+      dismiss()
+      let options = NSWorkspace.OpenConfiguration()
+      options.activates = true
+      NSWorkspace.shared.openApplication(at: tile.url, configuration: options) { app, error in
+        if let error {
+          log("OPEN-FAILED \(tile.bundle): \(error.localizedDescription)")
+        } else {
+          log("OPENED \(app?.bundleIdentifier ?? tile.bundle)")
+        }
+      }
+    }
+    presentation.view.onScrollDown = {
+      guard config.scrollDismisses else { return }
+      log("SCROLL-DISMISS \(tile.bundle)")
+      dismiss()
+    }
+    presentation.view.onRightClick = {
+      guard config.rightClickDismisses else { return }
+      log("RIGHT-CLICK-DISMISS \(tile.bundle)")
+      dismiss()
+    }
+    let x = min(max(tile.rect.midX - 64, screen.frame.minX), screen.frame.maxX - panelSize)
+    let target = CGPoint(
+      x: x, y: restingY(edge: screen.frame.minY, fraction: config.peekFraction))
+    if presentation.phase == "hidden" || presentation.phase == "exiting" {
+      let animation = entryStyle(
+        badge: badge, coveredBadge: dockCovered[tile.bundle], configured: config.entryAnimation)
+      presentation.show(at: target, screen: screen.frame, animation: animation)
+      dockCovered.removeValue(forKey: tile.bundle)
+    } else {
+      presentation.target = target
+    }
+    presentations[tile.bundle] = presentation
+  }
+
 }
 log(
   "Dock Peek; config=\(configPath); demo=\(demo); duration=\(duration == 0 ? "indefinite" : String(duration))"

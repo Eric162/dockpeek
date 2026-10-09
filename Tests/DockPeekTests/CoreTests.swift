@@ -5,6 +5,46 @@ import Testing
 @testable import DockPeekCore
 
 struct CoreTests {
+  @Test(arguments: [0.0, -0.1, 1.1, Double.infinity, Double.nan])
+  func testInvalidPeekFractions(_ fraction: Double) {
+    var config = Configuration()
+    config.peekFraction = fraction
+    #expect(!config.isValid)
+  }
+
+  @Test(arguments: [0.0, -1.0, Double.infinity, Double.nan])
+  func testInvalidDurations(_ duration: Double) {
+    for keyPath in [
+      \Configuration.slideDuration, \Configuration.dismissDuration,
+      \Configuration.tumbleDuration,
+    ] {
+      var config = Configuration()
+      config[keyPath: keyPath] = duration
+      #expect(!config.isValid)
+    }
+  }
+
+  @Test
+  func testInvalidAppIdentifiersAndDismissAnimation() throws {
+    var config = Configuration()
+    config.allowedApps = [""]
+    #expect(!config.isValid)
+    config.allowedApps = []
+    #expect(config.isValid)
+    config.dismissAnimation = "tumble"
+    #expect(!config.isValid)
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(Configuration.self, from: Data(#"{"enabled":1}"#.utf8))
+    }
+  }
+
+  @Test
+  func testRegexRejectsInvalidPatternsAndMissingCaptures() {
+    #expect(match("[", "text") == nil)
+    #expect(match("(a)?b", "b") == nil)
+    #expect(match("(🚢)", "🚢") == ["🚢"])
+  }
+
   @Test
   func testConfigurationDefaultsAndValidation() throws {
     var config = try JSONDecoder().decode(Configuration.self, from: Data("{}".utf8))

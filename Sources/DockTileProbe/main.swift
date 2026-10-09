@@ -10,9 +10,11 @@ if CommandLine.arguments.contains("--request-access") {
     trusted
       ? "Accessibility access is already enabled."
       : "Enable Dock Tile Probe in the macOS permission list.")
-  if !trusted {
-    NSWorkspace.shared.open(
-      URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+  if !trusted,
+    let url = URL(
+      string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+  {
+    NSWorkspace.shared.open(url)
   }
   exit(trusted ? 0 : 2)
 }

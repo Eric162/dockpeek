@@ -1,5 +1,4 @@
 import AppKit
-import Carbon
 import DockPeekCore
 import ServiceManagement
 import SwiftUI

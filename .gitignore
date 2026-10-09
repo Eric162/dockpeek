@@ -5,3 +5,5 @@ dist/
 Artifacts/
 *.xcuserstate
 xcuserdata/
+.tools/
+__pycache__/

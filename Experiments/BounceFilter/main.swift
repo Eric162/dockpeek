@@ -59,8 +59,10 @@ defer { dlclose(handle) }
 let createASN = load("_LSASNCreateWithPid", from: handle, as: CreateASN.self)
 let copyItem = load("_LSCopyApplicationInformationItem", from: handle, as: CopyItem.self)
 let setItem = load("_LSSetApplicationInformationItem", from: handle, as: SetItem.self)
-let attentionKey = CFStringCreateWithCString(
-  nil, "LSWantsAttention", CFStringBuiltInEncodings.UTF8.rawValue)!
+guard
+  let attentionKey = CFStringCreateWithCString(
+    nil, "LSWantsAttention", CFStringBuiltInEncodings.UTF8.rawValue)
+else { fail("Cannot create the attention key") }
 var reported: Set<pid_t> = []
 let deadline = ProcessInfo.processInfo.systemUptime + duration
 print(

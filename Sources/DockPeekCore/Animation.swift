@@ -1,5 +1,4 @@
 import CoreGraphics
-import Foundation
 
 public let panelSize = 128.0
 public let iconTop = 91.0

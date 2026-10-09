@@ -24,7 +24,7 @@ Center notifications or reproduce custom, dynamically drawn Dock artwork.
 ## Requirements
 
 - macOS 14 or later.
-- Swift 6 or later and Xcode or the Xcode Command Line Tools.
+- Swift 6.3 or later and Xcode or the Xcode Command Line Tools.
 - Python 3 for app-bundle packaging.
 - Accessibility permission for **Dock Tile Probe** to read Dock tiles.
 
@@ -35,6 +35,7 @@ fullscreen behavior need further testing.
 ## Build and run
 
 ```sh
+make bootstrap
 ./scripts/check.sh
 ./scripts/build-app.sh
 mkdir -p "$HOME/Applications"
@@ -95,6 +96,7 @@ default values. Invalid settings hide the overlays until a valid file is saved.
 Open `Package.swift` in Xcode, or use Swift Package Manager:
 
 ```sh
+make bootstrap
 swift build
 ./scripts/test.sh
 make format
@@ -124,7 +126,11 @@ Examples/           Sample configuration files
 docs/               Archived investigation and prototype evidence
 ```
 
-Checks enforce Swift formatting and compile with warnings treated as errors.
+Checks enforce strict formatting, semantic lint, Swift 6 concurrency checking,
+and debug/release builds with warnings treated as errors. Core line coverage must
+remain at 100%; compiler-based analysis checks unused imports. Git hooks and CI
+enforce Conventional Commits. CI also runs address and thread sanitizer tests.
+See [Contributing](CONTRIBUTING.md) for tool versions and commands.
 Tests cover configuration validation, peek geometry, traveling tumbles, badge
 parsing, Dock-return animation, temporary tests, and settings persistence.
 GitHub Actions runs the same checks and verifies app packaging on macOS.

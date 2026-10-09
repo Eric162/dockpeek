@@ -1,4 +1,5 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
-xcrun swift-format format --in-place --recursive Package.swift Sources Tests Experiments
+. ./scripts/tools.sh
+xcrun swift-format format --configuration .swift-format --in-place --recursive Package.swift Sources Tests Experiments

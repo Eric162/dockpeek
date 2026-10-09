@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+# Validate the exact tracked content being committed.
+if ! git diff --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+  echo 'Stage or stash all edits before committing so checks match the index.' >&2
+  exit 1
+fi
+make check

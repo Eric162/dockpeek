@@ -1,5 +1,3 @@
-import Foundation
-
 public struct Configuration: Codable {
   public var enabled = true
   public var allowedApps = ["com.openai.codex", "com.anysphere.sand"]

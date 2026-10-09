@@ -1,5 +1,5 @@
-import AppKit
 import DockPeekCore
+import Foundation
 import Testing
 
 @testable import DockPeekSettings
@@ -7,7 +7,7 @@ import Testing
 struct SettingsTests {
   @MainActor
   @Test
-  func testSelectionPersistenceAndTemporaryTestDoesNotChangeSavedSettings() async throws {
+  func testSelectionPersistenceAndTemporaryTestDoesNotChangeSavedSettings() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }

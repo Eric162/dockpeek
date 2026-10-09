@@ -16,11 +16,17 @@ public struct Tile: Sendable {
   public let rect: CGRect
 }
 @Sendable func match(_ pattern: String, _ text: String) -> [String]? {
-  let regex = try! NSRegularExpression(pattern: pattern)
-  guard let found = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) else {
+  guard let regex = try? NSRegularExpression(pattern: pattern),
+    let found = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text))
+  else {
     return nil
   }
-  return (1..<found.numberOfRanges).map { String(text[Range(found.range(at: $0), in: text)!]) }
+  var captures: [String] = []
+  for index in 1..<found.numberOfRanges {
+    guard let range = Range(found.range(at: index), in: text) else { return nil }
+    captures.append(String(text[range]))
+  }
+  return captures
 }
 @Sendable public func tiles(_ snapshot: String) -> [Tile] {
   snapshot.components(separatedBy: "    ELEMENT\n").compactMap { section -> Tile? in
