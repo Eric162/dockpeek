@@ -1,0 +1,15 @@
+name: Swift
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check formatting, build, and tests
+        run: ./scripts/check.sh
+      - name: Package and verify the app
+        run: ./scripts/build-app.sh

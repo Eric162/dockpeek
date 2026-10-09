@@ -1,0 +1,11 @@
+{
+  "peekFraction": 0.3333333333333333,
+  "entryAnimation": "tumble",
+  "dismissAnimation": "slide",
+  "slideDuration": 0.35,
+  "dismissDuration": 0.25,
+  "tumbleDuration": 1.4,
+  "openAppOnClick": true,
+  "scrollDismisses": true,
+  "rightClickDismisses": true
+}
