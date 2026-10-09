@@ -46,6 +46,64 @@ struct WorkerStateTests {
     #expect(state.update(configuration: config, observations: [observation("8")]).isEmpty)
   }
   @Test
+  func appActivationTemporarilyHidesOnlyItsPeek() {
+    var state = WorkerState()
+    var settings = config
+    settings.allowedApps.append("other.app")
+    let other = BadgeObservation(bundle: "other.app", badge: "2")
+    _ = state.update(configuration: settings, observations: [observation(), other])
+    let active = BadgeObservation(bundle: "test.app", badge: "3", appActive: true)
+    let result = state.update(configuration: settings, observations: [active, other])
+    #expect(result["test.app"] == nil)
+    #expect(result["other.app"]?.badge == "2")
+    #expect(
+      state.update(configuration: settings, observations: [observation(), other])["test.app"]?
+        .entry == .slide)
+  }
+  @Test
+  func badgesUpdateAndClearWhileAppIsActive() {
+    var state = WorkerState()
+    _ = state.update(configuration: config, observations: [observation()])
+    #expect(
+      state.update(
+        configuration: config,
+        observations: [
+          BadgeObservation(bundle: "test.app", badge: "8", appActive: true)
+        ]
+      ).isEmpty)
+    #expect(
+      state.update(configuration: config, observations: [observation("8")])["test.app"]?.badge
+        == "8")
+    _ = state.update(
+      configuration: config,
+      observations: [
+        BadgeObservation(bundle: "test.app", badge: "", appActive: true)
+      ])
+    #expect(state.update(configuration: config, observations: [observation("")]).isEmpty)
+    #expect(
+      state.update(configuration: config, observations: [observation()])["test.app"]?.entry
+        == .tumble)
+  }
+  @Test
+  func activationPreservesExplicitDismissalAndDockCoverage() {
+    var state = WorkerState()
+    _ = state.update(configuration: config, observations: [observation()])
+    state.dismiss("test.app")
+    let active = BadgeObservation(bundle: "test.app", badge: "3", appActive: true)
+    #expect(state.update(configuration: config, observations: [active]).isEmpty)
+    #expect(state.update(configuration: config, observations: [observation()]).isEmpty)
+    _ = state.update(
+      configuration: config,
+      observations: [
+        BadgeObservation(bundle: "test.app", badge: "8", dockVisible: true, appActive: true)
+      ])
+    #expect(
+      state.update(configuration: config, observations: [observation("8", covered: true)]).isEmpty)
+    #expect(
+      state.update(configuration: config, observations: [observation("8")])["test.app"]?.entry
+        == .slide)
+  }
+  @Test
   func failuresAndDisabledSettingsHideUntilValidInputReturns() {
     var state = WorkerState()
     _ = state.update(configuration: config, observations: [observation()])

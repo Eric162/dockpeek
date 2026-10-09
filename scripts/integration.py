@@ -55,6 +55,7 @@ def run(app):
                 'allowedApps': ['com.apple.TextEdit'], 'entryAnimation': 'none',
                 'dismissAnimation': 'none', 'openAppOnClick': False,
             }))
+            atomic(root / 'command.json', json.dumps({'token': str(uuid.uuid4()), 'frontmostBundle': ''}))
             atomic(root / 'worker.pid', '2147483647')
             arguments = [str(settings), '--verify-root', str(root)]
             arguments += ['--login-start'] if login_start else ['--verify-quit-after', '2']
@@ -78,7 +79,8 @@ def run(app):
                     checks += ['login-start' if login_start else 'settings-quit', 'duplicate-worker', 'stale-pid']
                     if not login_start:
                         verify_interactions(root, text)
-                        checks += ['right-click', 'scroll', 'badge-change', 'dock-return',
+                        checks += ['app-activation', 'app-switch', 'badge-update-while-active',
+                                   'right-click', 'scroll', 'badge-change', 'dock-return',
                                    'probe-failure', 'probe-timeout', 'invalid-config', 'recovery']
                     os.kill(pid, signal.SIGTERM)
                     wait_for(lambda: not alive(pid), 'worker drained shutdown')
@@ -105,8 +107,20 @@ def run(app):
 
 def verify_interactions(root, text):
     def command(**values):
-        atomic(root / 'command.json', json.dumps({'token': str(uuid.uuid4()), **values}))
-    command(dockVisibility='hidden', dismiss='rightClick')
+        atomic(root / 'command.json', json.dumps({'token': str(uuid.uuid4()), 'frontmostBundle': '', **values}))
+    def diagnostics():
+        path = root / 'diagnostics.json'
+        return json.loads(path.read_text()) if path.exists() else {}
+    command(dockVisibility='hidden', frontmostBundle='com.apple.TextEdit')
+    wait_for(lambda: diagnostics().get('visible') == 0, 'frontmost app hides its peek')
+    reads = diagnostics()['probeReads']
+    atomic(root / 'snapshot.txt', snapshot('4'))
+    wait_for(lambda: diagnostics().get('probeReads', 0) > reads + 1, 'badge observed while active')
+    assert diagnostics()['visible'] == 0, 'Active app peek reappeared on badge change'
+    command(dockVisibility='hidden', frontmostBundle='other.app')
+    wait_for(lambda: 'BADGE com.apple.TextEdit=4' in text(), 'switching away restores latest badge')
+    wait_for(lambda: diagnostics().get('visible') == 1, 'background app peek restored')
+    command(dockVisibility='hidden', frontmostBundle='', dismiss='rightClick')
     wait_for(lambda: 'RIGHT-CLICK-DISMISS' in text() and 'HIDDEN' in text(), 'right click dismissed')
     entered = text().count('ENTER')
     time.sleep(2.2)
@@ -146,7 +160,7 @@ def main():
     args = parser.parse_args()
     checks = run(args.app.resolve())
     report = {'synthetic': True, 'app': str(args.app.resolve()), 'checks': checks,
-              'limitations': ['No physical input, Accessibility permission, or actual logout/login cycle verified.']}
+              'limitations': ['App focus and Dock snapshots are synthetic. No physical input, Accessibility permission, or actual logout/login cycle verified.']}
     target = Path('.build/reports/integration.json')
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(report, indent=2) + '\n')

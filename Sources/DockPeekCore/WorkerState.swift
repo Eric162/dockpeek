@@ -4,11 +4,16 @@ public struct BadgeObservation: Sendable {
   public let bundle: String
   public let badge: String
   public let dockVisible: Bool
+  /// True only for the frontmost app, rather than every running app.
+  public let appActive: Bool
 
-  public init(bundle: String, badge: String, dockVisible: Bool = false) {
+  public init(
+    bundle: String, badge: String, dockVisible: Bool = false, appActive: Bool = false
+  ) {
     self.bundle = bundle
     self.badge = badge
     self.dockVisible = dockVisible
+    self.appActive = appActive
   }
 }
 
@@ -69,7 +74,7 @@ public struct WorkerState: Sendable {
     }
     if dismissed[observation.bundle] != key { dismissed.removeValue(forKey: observation.bundle) }
     guard dismissed[observation.bundle] != key else { return }
-    if observation.dockVisible {
+    if observation.dockVisible || observation.appActive {
       covered[observation.bundle] = badge
       return
     }

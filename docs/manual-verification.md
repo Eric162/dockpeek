@@ -10,6 +10,7 @@ it does not establish these physical or system behaviors.
 | Accessibility denied or revoked | Worker stays responsive, hides peeks, and reports probe failure without prompting repeatedly. |
 | Accessibility granted to runtime probe | Actual Dock badges match the peeks and update within the polling interval. |
 | Physical click, right-click, and scroll | Click activates the selected app; enabled dismissal gestures suppress the current badge. |
+| Switch between apps, including opening one by clicking its peek | The frontmost app's peek hides promptly. Switching away restores its remaining badge; cleared badges and explicitly dismissed badges stay hidden. Other apps' peeks remain visible. |
 | Dock reveal and hide | Peeks hide while native tiles are visible, then return with a slide. Dismissed badges stay dismissed. |
 | Multiple displays, including negative coordinates | Each peek uses its app's display and remains on that display's visible edge. |
 | Side Docks and fullscreen Spaces | Record actual placement; bottom-Dock geometry remains the supported contract until these cases are validated. |

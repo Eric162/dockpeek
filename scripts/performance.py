@@ -23,6 +23,7 @@ def measure(app, scenario, seconds, output, inspect):
         (root / '.build').mkdir()
         shutil.copytree(probe, root / '.build/Dock Tile Probe.app')
         atomic(root / 'snapshot.txt', snapshot('3'))
+        atomic(root / 'command.json', json.dumps({'token': 'performance', 'frontmostBundle': ''}))
         atomic(root / 'peek-config.json', json.dumps({
             'enabled': scenario != 'idle', 'allowedApps': ['com.apple.TextEdit'],
             'entryAnimation': 'none', 'dismissAnimation': 'none', 'openAppOnClick': False,

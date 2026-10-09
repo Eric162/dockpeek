@@ -20,6 +20,8 @@ final class WorkerController {
   private var stopping = false
   private var animationTicks = 0
   private var probeReads = 0
+  private var latestSnapshot: String?
+  private var activationObserver: NSObjectProtocol?
 
   init(root: URL, configURL: URL, demo: Bool = false, allowedOverride: Set<String>? = nil) {
     self.root = root
@@ -28,6 +30,14 @@ final class WorkerController {
     override = allowedOverride
   }
   func start() {
+    activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+      forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+    ) { [weak self] notification in
+      let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+      let bundle = app?.bundleIdentifier
+      // The explicit main queue makes rendering synchronous and main-actor safe.
+      MainActor.assumeIsolated { self?.activationChanged(to: bundle) }
+    }
     tick()
     refresh = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated { self?.tick() }
@@ -35,6 +45,11 @@ final class WorkerController {
   }
   func stop() async {
     stopping = true
+    if let activationObserver {
+      NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
+      self.activationObserver = nil
+    }
+    latestSnapshot = nil
     refresh?.invalidate()
     animation?.invalidate()
     updateTask?.cancel()
@@ -74,7 +89,10 @@ final class WorkerController {
         guard !stopping else { return }
         failureLogged = false
         probeReads += 1
-        apply(snapshot: snapshot, test: testRequest())
+        latestSnapshot = snapshot
+        apply(
+          snapshot: snapshot, test: testRequest(),
+          frontmostBundle: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
       } catch {
         hideAll()
         if !(error is CancellationError), !failureLogged {
@@ -91,12 +109,18 @@ final class WorkerController {
       .flatMap { $0.isActive ? $0 : nil }
   }
   private func hideAll() {
+    latestSnapshot = nil
     _ = state.update(configuration: nil, observations: nil)
     for presentation in presentations.values { presentation.hide(configuration: config) }
     ensureAnimationTimer()
     writeDiagnostics()
   }
-  private func apply(snapshot: String, test: PeekTestRequest?) {
+  private func activationChanged(to bundle: String?) {
+    guard !stopping, let latestSnapshot else { return }
+    apply(snapshot: latestSnapshot, test: testRequest(), frontmostBundle: bundle)
+    writeDiagnostics()
+  }
+  private func apply(snapshot: String, test: PeekTestRequest?, frontmostBundle: String?) {
     let primaryHeight = NSScreen.screens.first?.frame.maxY ?? 0
     var dockTiles = tiles(snapshot)
     if let test, !dockTiles.contains(where: { $0.bundle == test.bundleIdentifier }),
@@ -115,9 +139,12 @@ final class WorkerController {
     let placements = dockTiles.compactMap {
       placement($0, primaryHeight: primaryHeight, command: command)
     }
+    let activeBundle = command?.frontmostBundle ?? frontmostBundle
     let observations = placements.map {
       BadgeObservation(
-        bundle: $0.tile.bundle, badge: demo ? "3" : $0.tile.badge ?? "", dockVisible: $0.dockVisible
+        bundle: $0.tile.bundle, badge: demo ? "3" : $0.tile.badge ?? "",
+        dockVisible: $0.dockVisible,
+        appActive: $0.tile.bundle == activeBundle
       )
     }
     let desired = state.update(configuration: config, observations: observations, test: test)
@@ -174,7 +201,6 @@ final class WorkerController {
     }
     presentation.view.onClick = { [weak self] in
       guard let self, config.openAppOnClick else { return }
-      dismiss()
       let options = NSWorkspace.OpenConfiguration()
       options.activates = true
       NSWorkspace.shared.openApplication(at: tile.url, configuration: options) { _, error in
@@ -240,6 +266,7 @@ final class WorkerController {
   private struct VerificationCommand: Decodable {
     let token: String
     let dockVisibility: DockVisibility?
+    let frontmostBundle: String?
     let dismiss: String?
   }
   private func verificationCommand() -> VerificationCommand? {
