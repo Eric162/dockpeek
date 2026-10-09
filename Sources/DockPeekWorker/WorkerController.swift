@@ -32,7 +32,6 @@ final class WorkerController {
     refresh = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated { self?.tick() }
     }
-
   }
   func stop() async {
     stopping = true

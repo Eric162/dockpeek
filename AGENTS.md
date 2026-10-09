@@ -11,3 +11,5 @@ For Swift changes and quality-tool maintenance, read
 
 For release verification or CPU/memory investigations, read
 [the verification skill](.agents/skills/verify-dockpeek/SKILL.md).
+
+Before editing or reviewing Swift, read [the Swift style guide](docs/swift-style.md).

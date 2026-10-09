@@ -123,7 +123,6 @@ final class SettingsModel: ObservableObject {
       self.error = true
     }
   }
-
 }
 
 struct SettingsView: View {

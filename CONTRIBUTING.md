@@ -2,6 +2,9 @@
 
 Use Swift 6.3 on macOS 14 or later. Open `Package.swift` in Xcode or use the CLI.
 
+Follow [the Swift style guide](docs/swift-style.md), which adopts the official
+Swift API guidelines and Google's conventions with documented project exceptions.
+
 Before submitting changes, run:
 
 ```sh
