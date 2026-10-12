@@ -6,6 +6,7 @@ import DockPeekRuntime
 final class WorkerController {
   let root: URL
   private let configURL: URL
+  private let animations: AnimationCatalog
   private let demo: Bool
   private let override: Set<String>?
   private let reader = SnapshotReader()
@@ -26,6 +27,7 @@ final class WorkerController {
   init(root: URL, configURL: URL, demo: Bool = false, allowedOverride: Set<String>? = nil) {
     self.root = root
     self.configURL = configURL
+    animations = AnimationCatalog(root: root)
     self.demo = demo
     override = allowedOverride
   }
@@ -63,7 +65,10 @@ final class WorkerController {
     guard !stopping else { return }
     do {
       let next = try JSONDecoder().decode(Configuration.self, from: Data(contentsOf: configURL))
-      guard next.isValid else { throw CocoaError(.fileReadCorruptFile) }
+      animations.reload()
+      guard next.isValid, animations.registry.accepts(next) else {
+        throw CocoaError(.fileReadCorruptFile)
+      }
       config = next
       if let override { config.allowedApps = Array(override) }
     } catch {
@@ -110,7 +115,9 @@ final class WorkerController {
   private func hideAll() {
     latestSnapshot = nil
     _ = state.update(configuration: nil, observations: nil)
-    for presentation in presentations.values { presentation.hide(configuration: config) }
+    for presentation in presentations.values {
+      presentation.hide(configuration: config, registry: animations.registry)
+    }
     ensureAnimationTimer()
     writeDiagnostics()
   }
@@ -151,7 +158,7 @@ final class WorkerController {
       if let badge = desired[placement.tile.bundle] { present(placement, badge: badge) }
     }
     for (bundle, presentation) in presentations where desired[bundle] == nil {
-      presentation.hide(configuration: config)
+      presentation.hide(configuration: config, registry: animations.registry)
     }
     handle(command: command)
     ensureAnimationTimer()
@@ -195,7 +202,7 @@ final class WorkerController {
     let dismiss = { [weak self, weak presentation] in
       guard let self, let presentation else { return }
       state.dismiss(tile.bundle)
-      presentation.hide(configuration: config)
+      presentation.hide(configuration: config, registry: animations.registry)
       ensureAnimationTimer()
     }
     presentation.view.onClick = { [weak self] in
@@ -221,11 +228,13 @@ final class WorkerController {
       x: min(max(tile.rect.midX - 64, screen.minX), screen.maxX - panelSize),
       y: restingY(edge: screen.minY, fraction: config.peekFraction))
     if presentation.motion.phase == .hidden || presentation.motion.phase == .exiting {
-      presentation.show(at: point, screen: screen, animation: badge.entry)
+      presentation.show(
+        at: point, screen: screen, animation: badge.entry,
+        configuration: config, registry: animations.registry)
     } else if presentation.motion.target != point {
       presentation.motion.target = point
       if presentation.motion.phase == .shown {
-        presentation.animate(now: ProcessInfo.processInfo.systemUptime, configuration: config)
+        presentation.animate(now: ProcessInfo.processInfo.systemUptime)
       }
     }
     presentations[tile.bundle] = presentation
@@ -247,7 +256,7 @@ final class WorkerController {
     animationTicks += 1
     let now = ProcessInfo.processInfo.systemUptime
     for presentation in presentations.values where presentation.motion.isAnimating {
-      presentation.animate(now: now, configuration: config)
+      presentation.animate(now: now)
     }
     pruneHidden()
     ensureAnimationTimer()

@@ -162,31 +162,31 @@ struct WorkerStateTests {
     var motion = PresentationMotion()
     let screen = CGRect(x: 0, y: 0, width: 1920, height: 1080)
     let target = CGPoint(x: 900, y: -55)
-    #expect(motion.step(now: 0, configuration: config) == nil)
+    #expect(motion.step(now: 0) == nil)
     motion.hide(animation: .slide, now: 0)
     motion.show(at: target, screen: screen, animation: animation, now: 10)
     #expect(motion.isAnimating)
-    _ = motion.step(now: 9, configuration: config)
-    _ = motion.step(now: 10.1, configuration: config)
-    #expect(motion.step(now: 12, configuration: config)?.point == target)
+    _ = motion.step(now: 9)
+    _ = motion.step(now: 10.1)
+    #expect(motion.step(now: 12)?.point == target)
     #expect(motion.phase == .shown)
     #expect(!motion.isAnimating)
     motion.target.x = 1000
-    #expect(motion.step(now: 13, configuration: config)?.point.x == 1000)
+    #expect(motion.step(now: 13)?.point.x == 1000)
   }
-  @Test(arguments: DismissAnimation.allCases)
+  @Test(arguments: [DismissAnimation.slide, .none])
   func interruptedEntryAndDismissalComplete(_ animation: DismissAnimation) {
     var motion = PresentationMotion()
     motion.show(
       at: CGPoint(x: 1900, y: -55), screen: CGRect(x: 0, y: 0, width: 1920, height: 1080),
       animation: .tumble, now: 0)
-    _ = motion.step(now: 0.2, configuration: config)
+    _ = motion.step(now: 0.2)
     let start = motion.current.point
     motion.hide(animation: animation, now: 0.2)
     motion.hide(animation: .slide, now: 0.3)
-    let first = motion.step(now: 0.2, configuration: config)
+    let first = motion.step(now: 0.2)
     if animation == .slide { #expect(first?.point == start) } else { #expect(first == nil) }
-    #expect(motion.step(now: 1, configuration: config) == nil)
+    #expect(motion.step(now: 1) == nil)
     #expect(motion.phase == .hidden)
   }
   @Test
@@ -201,6 +201,6 @@ struct WorkerStateTests {
     #expect(json["entryAnimation"] as? String == "slide")
     #expect(json["dismissAnimation"] as? String == "none")
     #expect(EntryAnimation.allCases.count == 3)
-    #expect(DismissAnimation.allCases.count == 2)
+    #expect(DismissAnimation.allCases.count == 3)
   }
 }

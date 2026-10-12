@@ -17,6 +17,8 @@ final class SettingsModel: ObservableObject {
   @Published var message = ""
   @Published var error = false
   let root: URL
+  let animations: AnimationCatalog
+  @Published var animationRevision = 0
   var configURL: URL { root.appendingPathComponent("peek-config.json") }
   var apps: [AppChoice] {
     var ids = Set(config.allowedApps).union(config.applicationPaths.keys)
@@ -87,6 +89,8 @@ final class SettingsModel: ObservableObject {
     root: URL = RuntimePaths.root()
   ) {
     self.root = root
+    animations = AnimationCatalog(root: root)
+    animations.reload()
     do {
       config = try JSONDecoder().decode(Configuration.self, from: Data(contentsOf: configURL))
     } catch {
@@ -96,7 +100,10 @@ final class SettingsModel: ObservableObject {
   }
   func apply() {
     do {
-      guard config.isValid else { throw NSError(domain: "DockPeek", code: 1) }
+      animations.reload()
+      guard config.isValid, animations.registry.accepts(config) else {
+        throw NSError(domain: "DockPeek", code: 1)
+      }
       let encoder = JSONEncoder()
       encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
       try encoder.encode(config).write(to: configURL, options: .atomic)
@@ -185,29 +192,11 @@ struct SettingsView: View {
             Slider(value: $model.config.peekFraction, in: 0.1...1)
             Text("\(Int(model.config.peekFraction * 100))%").monospacedDigit().frame(width: 40)
           }
-          VStack(alignment: .leading, spacing: 10) {
-            Picker("Entry", selection: $model.config.entryAnimation) {
-              Text("Slide up").tag(EntryAnimation.slide)
-              Text("Tumble").tag(EntryAnimation.tumble)
-              Text("None").tag(EntryAnimation.none)
-            }
-            if model.config.entryAnimation == .tumble {
-              durationRow("Duration", value: $model.config.tumbleDuration, range: 0.5...3)
-                .padding(.leading, 20)
-            } else if model.config.entryAnimation == .slide {
-              durationRow("Duration", value: $model.config.slideDuration, range: 0.1...1)
-                .padding(.leading, 20)
-            }
-          }
-          VStack(alignment: .leading, spacing: 10) {
-            Picker("Dismissal", selection: $model.config.dismissAnimation) {
-              Text("Slide down").tag(DismissAnimation.slide)
-              Text("None").tag(DismissAnimation.none)
-            }
-            if model.config.dismissAnimation == .slide {
-              durationRow("Duration", value: $model.config.dismissDuration, range: 0.1...1)
-                .padding(.leading, 20)
-            }
+          AnimationSettingsView(model: model, stage: .entry)
+          AnimationSettingsView(model: model, stage: .dismissal)
+          Button("Install animation…", systemImage: "plus") { model.installAnimation() }
+          ForEach(model.animations.errors, id: \.self) { error in
+            Text(error).font(.caption).foregroundStyle(.red)
           }
         }
         Section("Interactions") {
@@ -240,14 +229,6 @@ struct SettingsView: View {
       .onChange(of: scenePhase) { _, phase in
         if phase == .active { background.refresh() }
       }
-  }
-  func durationRow(_ name: String, value: Binding<Double>, range: ClosedRange<Double>) -> some View
-  {
-    HStack {
-      Text(name)
-      Slider(value: value, in: range)
-      Text(String(format: "%.2f s", value.wrappedValue)).monospacedDigit().frame(width: 54)
-    }
   }
 }
 

@@ -13,6 +13,8 @@ running when settings is closed or quit.
 - Configure the visible portion of each icon, defaulting to one third.
 - Choose slide-up, tumble, or no entry animation. Tumble makes three shrinking
   hops along the screen edge while completing two spins.
+- Install [animation plugins](docs/animation-plugins.md) with generated settings controls and
+  a 15-second transition limit. Slide and Tumble are built-in plugins.
 - Peeks hide while their app is frontmost and return when you switch away if its badge remains.
 - Click to open an app. Scroll down or right-click to dismiss its current badge.
 - Slide back up after the native Dock hides, without replaying tumble.

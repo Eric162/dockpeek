@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "descriptor": {
+    "id": "example.fade",
+    "name": "Fade and lift",
+    "stages": ["entry", "dismissal"],
+    "settings": [
+      {"id": "duration", "name": "Duration (seconds)", "kind": "number", "defaultValue": 0.4, "minimum": 0.05, "maximum": 15},
+      {"id": "lift", "name": "Lift (points)", "kind": "number", "defaultValue": 16, "minimum": 0, "maximum": 64},
+      {"id": "bounce", "name": "Bounce", "kind": "toggle", "defaultValue": true},
+      {"id": "direction", "name": "Direction", "kind": "choice", "defaultValue": "up", "choices": ["up", "down"]}
+    ]
+  },
+  "keyframes": [
+    {"time": 0, "curve": "linear", "travel": 0, "x": 0, "y": {"binding": "setting.lift", "multiplier": -1}, "angle": 0, "squash": 1, "opacity": {"value": 1, "binding": "entering", "multiplier": -1}},
+    {"time": 0.6, "curve": "easeOut", "travel": 0.6, "x": {"binding": "setting.direction", "choices": {"up": 0, "down": 8}}, "y": {"binding": "setting.bounce", "multiplier": 6}, "angle": 0, "squash": 1, "opacity": 0.8},
+    {"time": 1, "curve": "easeOut", "travel": 1, "x": 0, "y": 0, "angle": 0, "squash": 1, "opacity": {"binding": "entering"}}
+  ]
+}

@@ -17,6 +17,14 @@ Direct subprocess fixtures under marked verification roots do not prove this
 permission path. Keep invocation ownership and cancellation cleanup in
 `ApplicationProbe`, and run its real app-launch tests after changing that path.
 
+Keep animation timing in `PresentationMotion`, native built-ins behind
+`AnimationPlugin`, and file loading in `AnimationCatalog`. Read
+[the plugin contract](../../../docs/animation-plugins.md) before changing that API.
+External plugins are bounded JSON data; do not add in-process script or bundle
+execution under the claim that a timer can preempt it. Settings controls must come
+from plugin descriptors. Capture settings per transition and preserve the host's
+final pose, deadline, cancellation, and idle-timer guarantees.
+
 Swift 6 mode enforces concurrency checking. Keep AppKit and SwiftUI state on the
 main actor. Timer callbacks currently enter through `MainActor.assumeIsolated`
 because those timers run on the main run loop. Preserve that invariant when

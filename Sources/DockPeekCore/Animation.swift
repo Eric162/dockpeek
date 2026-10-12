@@ -10,14 +10,16 @@ public let badgeDiameter = 23.0
 }
 @Sendable public func ease(_ t: Double) -> Double { 1 - pow(1 - t, 3) }
 public struct Pose: Sendable {
-  public init(point: CGPoint, angle: Double = 0, squash: Double = 1) {
+  public init(point: CGPoint, angle: Double = 0, squash: Double = 1, opacity: Double = 1) {
     self.point = point
     self.angle = angle
     self.squash = squash
+    self.opacity = opacity
   }
   public var point: CGPoint
   public var angle = 0.0
   public var squash = 1.0
+  public var opacity = 1.0
 }
 @Sendable public func tumblePose(progress: Double, start: CGPoint, target: CGPoint, fromLeft: Bool)
   -> Pose

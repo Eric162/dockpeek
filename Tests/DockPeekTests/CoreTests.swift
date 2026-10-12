@@ -33,7 +33,7 @@ struct CoreTests {
     #expect(config.isValid)
     #expect(throws: DecodingError.self) {
       try JSONDecoder().decode(
-        Configuration.self, from: Data(#"{"dismissAnimation":"tumble"}"#.utf8))
+        Configuration.self, from: Data(#"{"dismissAnimation":"TUMBLE"}"#.utf8))
     }
     #expect(throws: DecodingError.self) {
       try JSONDecoder().decode(Configuration.self, from: Data(#"{"enabled":1}"#.utf8))
@@ -60,7 +60,7 @@ struct CoreTests {
     config.tumbleDuration = 1.4
     #expect(throws: DecodingError.self) {
       try JSONDecoder().decode(
-        Configuration.self, from: Data(#"{"entryAnimation":"invalid"}"#.utf8))
+        Configuration.self, from: Data(#"{"entryAnimation":"INVALID"}"#.utf8))
     }
   }
 

@@ -81,7 +81,9 @@ def run(app):
                         verify_interactions(root, text)
                         checks += ['app-activation', 'app-switch', 'badge-update-while-active',
                                    'right-click', 'scroll', 'badge-change', 'dock-return',
-                                   'probe-failure', 'probe-timeout', 'invalid-config', 'recovery']
+                                   'probe-failure', 'probe-timeout', 'invalid-config', 'recovery',
+                                   'plugin-entry', 'plugin-dismissal', 'plugin-timer-stop',
+                                   'plugin-removal', 'plugin-recovery']
                     os.kill(pid, signal.SIGTERM)
                     wait_for(lambda: not alive(pid), 'worker drained shutdown')
                     assert 'STOPPED worker; probe drained' in text()
@@ -152,6 +154,37 @@ def verify_interactions(root, text):
     entered = text().count('ENTER')
     atomic(root / 'peek-config.json', json.dumps({'allowedApps': ['com.apple.TextEdit'], 'entryAnimation': 'none'}))
     wait_for(lambda: text().count('ENTER') > entered, 'valid configuration restores overlays')
+
+    animations = root / 'Animations'
+    animations.mkdir()
+    example = json.loads(Path('docs/examples/fade.json').read_text())
+    atomic(animations / 'example.fade.json', json.dumps(example))
+    config = {'allowedApps': ['com.apple.TextEdit'], 'entryAnimation': 'example.fade',
+              'dismissAnimation': 'example.fade', 'openAppOnClick': False,
+              'entrySettings': {'example.fade': {'duration': 0.4, 'lift': 16,
+                                                'bounce': False, 'direction': 'down'}},
+              'dismissalSettings': {'example.fade': {'duration': 0.2}}}
+    atomic(root / 'snapshot.txt', snapshot(''))
+    wait_for(lambda: diagnostics().get('visible') == 0, 'clear badge before plugin test')
+    atomic(root / 'peek-config.json', json.dumps(config))
+    atomic(root / 'snapshot.txt', snapshot('12'))
+    settled = text().count('SETTLED')
+    wait_for(lambda: 'ENTER Dock Peek: TextEdit style=example.fade' in text(), 'external plugin entry')
+    wait_for(lambda: text().count('SETTLED') > settled, 'external plugin settles')
+    wait_for(lambda: diagnostics().get('animationTimerActive') == 0, 'plugin timer stops')
+    hidden = text().count('HIDDEN')
+    command(dockVisibility='hidden', dismiss='rightClick')
+    wait_for(lambda: 'EXIT Dock Peek: TextEdit style=example.fade' in text()
+             and text().count('HIDDEN') > hidden, 'external plugin dismissal')
+    (animations / 'example.fade.json').unlink()
+    atomic(root / 'snapshot.txt', snapshot('13'))
+    reads = diagnostics()['probeReads']
+    time.sleep(2.2)
+    assert diagnostics()['visible'] == 0, 'Missing selected plugin rendered'
+    assert diagnostics()['probeReads'] == reads, 'Missing selected plugin kept probing'
+    atomic(animations / 'example.fade.json', json.dumps(example))
+    entered = text().count('ENTER')
+    wait_for(lambda: text().count('ENTER') > entered, 'reinstalled plugin recovers')
 
 
 def main():

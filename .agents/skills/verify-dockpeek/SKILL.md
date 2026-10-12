@@ -24,6 +24,20 @@ visibility, and login startup are simulated. Use
 Accessibility grants, displays, and actual logout/login; report unperformed paths.
 Automatic checks leave the user's installed worker and Login Items untouched.
 
+## Animation plugins
+
+Read [the plugin contract](../../../docs/animation-plugins.md). Run
+`./scripts/test.sh --filter AnimationPluginTests` for schema, typed settings,
+bindings, installation, captured configuration, interrupted transitions, invalid
+poses, and the 15-second monotonic deadline. Keep core coverage at 100%.
+
+`make integration` installs the checked-in `docs/examples/fade.json` under an
+isolated root and verifies entry, dismissal, stopped timers, removal, and recovery.
+The example includes numeric, toggle, and choice settings. Use the packaged
+settings window to check generated controls and importing a JSON file; integration
+does not click the import dialog or establish physical Dock placement. Preserve
+the installed probe and the user's settings when explicitly updating their app.
+
 ## CPU and memory
 
 Build a fresh release bundle with `make app`, then use:
