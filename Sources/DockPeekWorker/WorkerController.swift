@@ -82,9 +82,8 @@ final class WorkerController {
       guard let self else { return }
       defer { updateTask = nil }
       do {
-        let probe = root.appendingPathComponent(
-          ".build/Dock Tile Probe.app/Contents/MacOS/DockTileProbe")
-        let snapshot = try await reader.read(root: root, probe: probe)
+        let probe = root.appendingPathComponent(".build/Dock Tile Probe.app")
+        let snapshot = try await reader.read(root: root, probeBundle: probe)
         try Task.checkCancellation()
         guard !stopping else { return }
         failureLogged = false

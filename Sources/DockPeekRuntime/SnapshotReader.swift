@@ -4,7 +4,12 @@ public actor SnapshotReader {
   private let runner = ProcessRunner()
   public init() {}
 
-  public func read(root: URL, probe: URL, timeout: Duration = .seconds(3)) async throws -> String {
+  public func read(root: URL, probeBundle: URL, timeout: Duration = .seconds(3)) async throws
+    -> String
+  {
+    guard let probe = Bundle(url: probeBundle)?.executableURL else {
+      throw CocoaError(.fileReadCorruptFile)
+    }
     let snapshot = root.appendingPathComponent(".build/peek-snapshot-\(getpid()).txt")
     let arguments = RuntimePaths.isVerification(root) ? ["--verify-root", root.path] : []
     _ = try await runner.run(
