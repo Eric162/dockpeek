@@ -33,7 +33,11 @@ poses, and the 15-second monotonic deadline. Keep core coverage at 100%.
 
 `make integration` installs the checked-in `docs/examples/fade.json` under an
 isolated root and verifies entry, dismissal, stopped timers, removal, and recovery.
-The example includes numeric, toggle, and choice settings. Use the packaged
+The example includes numeric, toggle, and choice settings. For its CPU/RSS and
+stopped-timer budgets, run `python3 scripts/performance.py --seconds 12 --gate
+--plugin docs/examples/fade.json --output Artifacts/Performance/animation-plugin`.
+Process timing includes entry; RSS samples follow warmup. This is one entry per
+worker, not sustained animation throughput. Use the packaged
 settings window to check generated controls and importing a JSON file; integration
 does not click the import dialog or establish physical Dock placement. Preserve
 the installed probe and the user's settings when explicitly updating their app.

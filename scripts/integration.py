@@ -169,9 +169,11 @@ def verify_interactions(root, text):
     atomic(root / 'peek-config.json', json.dumps(config))
     atomic(root / 'snapshot.txt', snapshot('12'))
     settled = text().count('SETTLED')
+    ticks = diagnostics().get('animationTicks', 0)
     wait_for(lambda: 'ENTER Dock Peek: TextEdit style=example.fade' in text(), 'external plugin entry')
     wait_for(lambda: text().count('SETTLED') > settled, 'external plugin settles')
     wait_for(lambda: diagnostics().get('animationTimerActive') == 0, 'plugin timer stops')
+    assert diagnostics()['animationTicks'] > ticks, 'Plugin settled without animating'
     hidden = text().count('HIDDEN')
     command(dockVisibility='hidden', dismiss='rightClick')
     wait_for(lambda: 'EXIT Dock Peek: TextEdit style=example.fade' in text()

@@ -123,4 +123,16 @@ bounds, interpolation, legacy configuration, clock deadlines, interruption,
 invalid poses, catalog caching, installation, and removal. Packaged integration
 loads the example into an isolated runtime and checks rendering, timer shutdown,
 dismissal, missing-plugin behavior, and restoration.
+Measure the installed example with:
+
+```sh
+python3 scripts/performance.py --seconds 12 --gate --plugin docs/examples/fade.json \
+  --output Artifacts/Performance/animation-plugin
+```
+
+This measures idle, settled, and changing badges with the plugin installed. CPU
+timing includes startup, its initial animation, and drain; RSS sampling follows
+warmup. It verifies that animation ran and stopped, but does not measure sustained
+animation throughput. CI runs this fixture alongside the existing resource budgets.
+
 These fixtures do not establish physical Dock positioning or Accessibility grants.
