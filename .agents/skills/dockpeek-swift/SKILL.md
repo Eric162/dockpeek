@@ -10,6 +10,13 @@ configuration, geometry, snapshot parsing, and pure worker decisions in
 `DockPeekCore`. Keep bounded subprocess I/O in `DockPeekRuntime` and AppKit
 rendering in the worker executable.
 
+Preserve the runtime probe bundle during upgrades. Resolve its executable from
+bundle metadata; older authorized bundles use a different executable name. Launch
+production probes as macOS apps so Accessibility uses their own app identity.
+Direct subprocess fixtures under marked verification roots do not prove this
+permission path. Keep invocation ownership and cancellation cleanup in
+`ApplicationProbe`, and run its real app-launch tests after changing that path.
+
 Swift 6 mode enforces concurrency checking. Keep AppKit and SwiftUI state on the
 main actor. Timer callbacks currently enter through `MainActor.assumeIsolated`
 because those timers run on the main run loop. Preserve that invariant when

@@ -11,6 +11,7 @@ struct SnapshotReaderTests {
     try FileManager.default.createDirectory(
       at: root.appendingPathComponent(".build"), withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
+    try Data().write(to: root.appendingPathComponent(".dockpeek-verification"))
     let bundle = root.appendingPathComponent(".build/Dock Tile Probe.app")
     let contents = bundle.appendingPathComponent("Contents")
     try FileManager.default.createDirectory(
