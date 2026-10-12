@@ -3,8 +3,10 @@ import CoreGraphics
 public let panelSize = 128.0
 public let iconTop = 91.0
 public let iconSize = 54.0
+public let badgeDiameter = 23.0
 @Sendable public func restingY(edge: Double, fraction: Double) -> Double {
-  edge - iconTop + iconSize * fraction
+  // The badge must remain readable even when the configured icon peek is very small.
+  edge - iconTop + max(badgeDiameter, iconSize * fraction)
 }
 @Sendable public func ease(_ t: Double) -> Double { 1 - pow(1 - t, 3) }
 public struct Pose: Sendable {

@@ -69,7 +69,8 @@ struct CoreTests {
     for edge in [0.0, -1080.0, 1692.0] {
       for fraction in [0.1, 1.0 / 3, 1.0] {
         let visible = restingY(edge: edge, fraction: fraction) + iconTop - edge
-        #expect(abs(visible / iconSize - fraction) <= 0.0001)
+        #expect(abs(visible - max(badgeDiameter, iconSize * fraction)) <= 0.0001)
+        #expect(visible >= badgeDiameter)
       }
     }
   }

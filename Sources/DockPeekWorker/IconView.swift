@@ -17,15 +17,19 @@ final class IconView: NSView {
     transform.scaleX(by: 1 / squash, yBy: squash)
     transform.translateX(by: -64, yBy: -64)
     transform.concat()
-    image?.draw(in: NSRect(x: 37, y: 37, width: iconSize, height: iconSize))
+    let iconRect = NSRect(x: 37, y: 37, width: iconSize, height: iconSize)
+    image?.draw(in: iconRect)
     let attributes: [NSAttributedString.Key: Any] = [
-      .font: NSFont.boldSystemFont(ofSize: 13), .foregroundColor: NSColor.white,
+      .font: NSFont.systemFont(ofSize: 13, weight: .regular), .foregroundColor: NSColor.white,
     ]
     let size = (badge as NSString).size(withAttributes: attributes)
+    let diameter = badgeDiameter
+    let width = max(diameter, size.width + 12)
+    // Anchor the badge to the icon canvas. Longer labels expand toward the icon's left.
     let bubble = NSRect(
-      x: 110 - max(23, size.width + 12), y: 79, width: max(23, size.width + 12), height: 23)
+      x: iconRect.maxX - width, y: iconRect.maxY - diameter, width: width, height: diameter)
     NSColor.systemRed.setFill()
-    NSBezierPath(roundedRect: bubble, xRadius: 11.5, yRadius: 11.5).fill()
+    NSBezierPath(roundedRect: bubble, xRadius: diameter / 2, yRadius: diameter / 2).fill()
     (badge as NSString).draw(
       at: NSPoint(x: bubble.midX - size.width / 2, y: bubble.midY - size.height / 2),
       withAttributes: attributes)
