@@ -1,4 +1,3 @@
-import CoreGraphics
 import Foundation
 import Testing
 
@@ -11,11 +10,13 @@ struct WorkerStateTests {
     config.allowedApps = ["test.app"]
     return config
   }
-  private func observation(_ badge: String = "3", covered: Bool = false) -> BadgeObservation {
-    BadgeObservation(bundle: "test.app", badge: badge, dockVisible: covered)
+  private func observation(_ badge: String = "3", covered: Bool = false, active: Bool = false)
+    -> BadgeObservation
+  {
+    BadgeObservation(bundle: "test.app", badge: badge, dockVisible: covered, appActive: active)
   }
   @Test
-  func dismissalPersistsUntilBadgeChangesOrClears() {
+  func dismissalPersistsUntilBadgeChangesClearsOrAppDisappears() {
     var state = WorkerState()
     #expect(
       state.update(configuration: config, observations: [observation()])["test.app"]?.badge == "3")
@@ -28,60 +29,41 @@ struct WorkerStateTests {
     state.dismiss("test.app")
     #expect(state.update(configuration: config, observations: [observation("")]).isEmpty)
     #expect(state.update(configuration: config, observations: [observation("8")]).count == 1)
-  }
-  @Test
-  func dockReturnSlidesButChangedBadgesUseConfiguredStyle() {
-    var state = WorkerState()
-    #expect(state.update(configuration: config, observations: [observation(covered: true)]).isEmpty)
-    #expect(
-      state.update(configuration: config, observations: [observation()])["test.app"]?.entry
-        == .slide)
-    _ = state.update(configuration: config, observations: [observation(covered: true)])
-    #expect(
-      state.update(configuration: config, observations: [observation("8")])["test.app"]?.entry
-        == .tumble)
     state.dismiss("test.app")
-    #expect(
-      state.update(configuration: config, observations: [observation("8", covered: true)]).isEmpty)
-    #expect(state.update(configuration: config, observations: [observation("8")]).isEmpty)
+    #expect(state.update(configuration: config, observations: []).isEmpty)
+    #expect(state.update(configuration: config, observations: [observation("8")]).count == 1)
   }
-  @Test
-  func appActivationTemporarilyHidesOnlyItsPeek() {
+  @Test(arguments: [false, true])
+  func temporaryCoverageHidesOnlyItsPeekAndObservesBadgeChanges(active: Bool) {
     var state = WorkerState()
     var settings = config
     settings.allowedApps.append("other.app")
     let other = BadgeObservation(bundle: "other.app", badge: "2")
-    _ = state.update(configuration: settings, observations: [observation(), other])
-    let active = BadgeObservation(bundle: "test.app", badge: "3", appActive: true)
-    let result = state.update(configuration: settings, observations: [active, other])
+    func observations(_ badge: String = "3", hidden: Bool = false) -> [BadgeObservation] {
+      [observation(badge, covered: hidden && !active, active: hidden && active), other]
+    }
+    _ = state.update(configuration: settings, observations: observations())
+    let result = state.update(configuration: settings, observations: observations(hidden: true))
     #expect(result["test.app"] == nil)
     #expect(result["other.app"]?.badge == "2")
     #expect(
-      state.update(configuration: settings, observations: [observation(), other])["test.app"]?
-        .entry == .slide)
-  }
-  @Test
-  func badgesUpdateAndClearWhileAppIsActive() {
-    var state = WorkerState()
-    _ = state.update(configuration: config, observations: [observation()])
+      state.update(configuration: settings, observations: observations())["test.app"]?.entry
+        == .slide)
+    _ = state.update(configuration: settings, observations: observations(hidden: true))
     #expect(
-      state.update(
-        configuration: config,
-        observations: [
-          BadgeObservation(bundle: "test.app", badge: "8", appActive: true)
-        ]
-      ).isEmpty)
+      state.update(configuration: settings, observations: observations("8"))["test.app"]?.entry
+        == .tumble)
     #expect(
-      state.update(configuration: config, observations: [observation("8")])["test.app"]?.badge
-        == "8")
-    _ = state.update(
-      configuration: config,
-      observations: [
-        BadgeObservation(bundle: "test.app", badge: "", appActive: true)
-      ])
-    #expect(state.update(configuration: config, observations: [observation("")]).isEmpty)
+      state.update(configuration: settings, observations: observations("9", hidden: true))[
+        "test.app"] == nil)
     #expect(
-      state.update(configuration: config, observations: [observation()])["test.app"]?.entry
+      state.update(configuration: settings, observations: observations("9"))["test.app"]?.badge
+        == "9")
+    _ = state.update(configuration: settings, observations: observations("", hidden: true))
+    #expect(
+      state.update(configuration: settings, observations: observations(""))["test.app"] == nil)
+    #expect(
+      state.update(configuration: settings, observations: observations())["test.app"]?.entry
         == .tumble)
   }
   @Test
@@ -89,14 +71,11 @@ struct WorkerStateTests {
     var state = WorkerState()
     _ = state.update(configuration: config, observations: [observation()])
     state.dismiss("test.app")
-    let active = BadgeObservation(bundle: "test.app", badge: "3", appActive: true)
-    #expect(state.update(configuration: config, observations: [active]).isEmpty)
+    #expect(state.update(configuration: config, observations: [observation(active: true)]).isEmpty)
+    #expect(state.update(configuration: config, observations: [observation(covered: true)]).isEmpty)
     #expect(state.update(configuration: config, observations: [observation()]).isEmpty)
     _ = state.update(
-      configuration: config,
-      observations: [
-        BadgeObservation(bundle: "test.app", badge: "8", dockVisible: true, appActive: true)
-      ])
+      configuration: config, observations: [observation("8", covered: true, active: true)])
     #expect(
       state.update(configuration: config, observations: [observation("8", covered: true)]).isEmpty)
     #expect(
@@ -121,11 +100,18 @@ struct WorkerStateTests {
     #expect(state.update(configuration: config, observations: [observation()]).count == 1)
   }
   @Test
-  func temporaryTestOverridesDisabledSettingsAndExpiresAtBoundary() {
+  func temporaryTestOverridesDisabledSettingsAndExpiresAtBoundary() throws {
     var state = WorkerState()
     var disabled = config
     disabled.enabled = false
-    let test = PeekTestRequest(bundleIdentifier: "test.app", applicationPath: "/Test.app", now: now)
+    let request = PeekTestRequest(
+      bundleIdentifier: "test.app", applicationPath: "/Test.app", now: now)
+    let test = try JSONDecoder().decode(PeekTestRequest.self, from: JSONEncoder().encode(request))
+    #expect(test.bundleIdentifier == "test.app")
+    #expect(test.applicationPath == "/Test.app")
+    #expect(test.token == request.token)
+    #expect(test.expiresAt == now.addingTimeInterval(10))
+    #expect(test.isActive(at: now))
     let visible = state.update(
       configuration: disabled, observations: [observation("")], test: test, now: now)
     #expect(visible["test.app"]?.badge == "3")
@@ -140,67 +126,11 @@ struct WorkerStateTests {
         .count == 1)
     #expect(
       state.update(
-        configuration: disabled, observations: [observation()], test: next,
-        now: next.expiresAt
+        configuration: disabled, observations: [observation()], test: next, now: next.expiresAt
       ).isEmpty)
     #expect(
       state.update(
-        configuration: config, observations: [observation()], test: next,
-        now: next.expiresAt)["test.app"]?.key == "3")
-    #expect(!test.isActive(at: test.expiresAt))
-  }
-  @Test
-  func disappearedAppsReleaseDismissalState() {
-    var state = WorkerState()
-    _ = state.update(configuration: config, observations: [observation()])
-    state.dismiss("test.app")
-    #expect(state.update(configuration: config, observations: []).isEmpty)
-    #expect(state.update(configuration: config, observations: [observation()]).count == 1)
-  }
-  @Test(arguments: EntryAnimation.allCases)
-  func presentationEntryAndTargetMovement(_ animation: EntryAnimation) {
-    var motion = PresentationMotion()
-    let screen = CGRect(x: 0, y: 0, width: 1920, height: 1080)
-    let target = CGPoint(x: 900, y: -55)
-    #expect(motion.step(now: 0) == nil)
-    motion.hide(animation: .slide, now: 0)
-    motion.show(at: target, screen: screen, animation: animation, now: 10)
-    #expect(motion.isAnimating)
-    _ = motion.step(now: 9)
-    _ = motion.step(now: 10.1)
-    #expect(motion.step(now: 12)?.point == target)
-    #expect(motion.phase == .shown)
-    #expect(!motion.isAnimating)
-    motion.target.x = 1000
-    #expect(motion.step(now: 13)?.point.x == 1000)
-  }
-  @Test(arguments: [DismissAnimation.slide, .none])
-  func interruptedEntryAndDismissalComplete(_ animation: DismissAnimation) {
-    var motion = PresentationMotion()
-    motion.show(
-      at: CGPoint(x: 1900, y: -55), screen: CGRect(x: 0, y: 0, width: 1920, height: 1080),
-      animation: .tumble, now: 0)
-    _ = motion.step(now: 0.2)
-    let start = motion.current.point
-    motion.hide(animation: animation, now: 0.2)
-    motion.hide(animation: .slide, now: 0.3)
-    let first = motion.step(now: 0.2)
-    if animation == .slide { #expect(first?.point == start) } else { #expect(first == nil) }
-    #expect(motion.step(now: 1) == nil)
-    #expect(motion.phase == .hidden)
-  }
-  @Test
-  func animationEnumsPreserveJSONAndRejectUnknownValues() throws {
-    let decoded = try JSONDecoder().decode(
-      Configuration.self,
-      from: Data(#"{"entryAnimation":"slide","dismissAnimation":"none"}"#.utf8))
-    #expect(decoded.entryAnimation == .slide)
-    #expect(decoded.dismissAnimation == .none)
-    let json = try #require(
-      JSONSerialization.jsonObject(with: JSONEncoder().encode(decoded)) as? [String: Any])
-    #expect(json["entryAnimation"] as? String == "slide")
-    #expect(json["dismissAnimation"] as? String == "none")
-    #expect(EntryAnimation.allCases.count == 3)
-    #expect(DismissAnimation.allCases.count == 3)
+        configuration: config, observations: [observation()], test: next, now: next.expiresAt)[
+          "test.app"]?.key == "3")
   }
 }

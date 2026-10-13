@@ -143,7 +143,9 @@ public func validAnimationIdentifier(_ id: String) -> Bool {
 
 public struct AnimationRegistry: Sendable {
   public static let maximumDuration = 15.0
-  public private(set) var plugins: [any AnimationPlugin] = [SlideAnimation(), TumbleAnimation()]
+  public private(set) var plugins: [any AnimationPlugin] = [
+    BuiltinAnimation.slide, BuiltinAnimation.tumble,
+  ]
   public init() {}
   public mutating func register(_ plugin: any AnimationPlugin) throws {
     guard plugin.isValid, plugins.count < 66,

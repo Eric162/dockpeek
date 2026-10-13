@@ -38,23 +38,6 @@ if CommandLine.arguments.contains("--request-access") {
   exit(trusted ? 0 : 2)
 }
 
-// Icon extraction is independent of Accessibility permission.
-if CommandLine.arguments.count == 4 && CommandLine.arguments[1] == "--icon-only" {
-  let image = NSWorkspace.shared.icon(forFile: CommandLine.arguments[2])
-  guard let tiff = image.tiffRepresentation,
-    let bitmap = NSBitmapImageRep(data: tiff),
-    let png = bitmap.representation(using: .png, properties: [:])
-  else { exit(1) }
-  do {
-    try png.write(to: URL(fileURLWithPath: CommandLine.arguments[3]))
-    print("Saved icon to \(CommandLine.arguments[3])")
-    exit(0)
-  } catch {
-    fputs("\(error)\n", stderr)
-    exit(1)
-  }
-}
-
 func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
   var result: CFTypeRef?
   return AXUIElementCopyAttributeValue(element, name as CFString, &result) == .success

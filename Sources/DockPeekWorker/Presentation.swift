@@ -30,7 +30,7 @@ final class Presentation {
     iconLoads += 1
   }
   func show(
-    at point: CGPoint, screen: CGRect, animation: EntryAnimation, configuration: Configuration,
+    at point: CGPoint, screen: CGRect, animation: AnimationIdentifier, configuration: Configuration,
     registry: AnimationRegistry
   ) {
     motion.show(

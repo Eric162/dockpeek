@@ -20,6 +20,15 @@ public struct Pose: Sendable {
   public var angle = 0.0
   public var squash = 1.0
   public var opacity = 1.0
+  public func interpolated(to end: Pose, progress: Double) -> Pose {
+    Pose(
+      point: CGPoint(
+        x: point.x + (end.point.x - point.x) * progress,
+        y: point.y + (end.point.y - point.y) * progress),
+      angle: angle + (end.angle - angle) * progress,
+      squash: squash + (end.squash - squash) * progress,
+      opacity: opacity + (end.opacity - opacity) * progress)
+  }
 }
 @Sendable public func tumblePose(progress: Double, start: CGPoint, target: CGPoint, fromLeft: Bool)
   -> Pose
@@ -42,9 +51,4 @@ public struct Pose: Sendable {
     if landing < 0.25 { squash = 1 - 0.18 * sin(.pi * landing / 0.25) }
   }
   return Pose(point: CGPoint(x: x, y: y), angle: (fromLeft ? -1 : 1) * 4 * .pi * t, squash: squash)
-}
-@Sendable public func entryStyle(badge: String, coveredBadge: String?, configured: EntryAnimation)
-  -> EntryAnimation
-{
-  coveredBadge == badge ? .slide : configured
 }

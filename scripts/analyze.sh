@@ -4,6 +4,7 @@ cd "$(dirname "$0")/.."
 . ./scripts/tools.sh
 # A dedicated, clean build is required; incremental logs silently miss files.
 scratch=.build/analysis
+trap 'rm -rf "$scratch"' EXIT HUP INT TERM
 mkdir -p .build/reports
 swift package --scratch-path "$scratch" clean
 ./scripts/test.sh --scratch-path "$scratch" --verbose > .build/reports/compiler.log 2>&1 || {
@@ -23,9 +24,9 @@ fi
 python3 - <<'VERIFY'
 import re
 from pathlib import Path
-expected = sum(len(list(Path(root).rglob("*.swift"))) for root in ("Sources", "Tests", "Experiments"))
+expected = sum(len(list(Path(root).rglob("*.swift"))) for root in ("Sources", "Tests"))
 log = Path(".build/reports/analysis.log").read_text()
 summary = re.search(r"Done analyzing! Found 0 violations, 0 serious in (\d+) files\.", log)
 if not summary or int(summary.group(1)) != expected:
-    raise SystemExit("Static analysis must successfully check every source, test, and experiment file")
+    raise SystemExit("Static analysis must successfully check every source and test file")
 VERIFY

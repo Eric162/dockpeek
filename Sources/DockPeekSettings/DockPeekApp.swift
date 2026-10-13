@@ -217,14 +217,7 @@ struct SettingsView: View {
     }.frame(minWidth: 470, minHeight: 840)
       .task {
         await background.migrateLegacyAgent()
-        if CommandLine.arguments.contains("--unregister-background") {
-          await background.setLaunchAtLogin(false)
-        } else if CommandLine.arguments.contains("--register-background") {
-          await background.setLaunchAtLogin(true)
-        } else {
-          background.prepare()
-        }
-        if CommandLine.arguments.contains("--test-self") { model.testPeek() }
+        background.prepare()
       }
       .onChange(of: scenePhase) { _, phase in
         if phase == .active { background.refresh() }

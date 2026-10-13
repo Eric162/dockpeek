@@ -7,8 +7,6 @@ final class WorkerController {
   let root: URL
   private let configURL: URL
   private let animations: AnimationCatalog
-  private let demo: Bool
-  private let override: Set<String>?
   private let reader = SnapshotReader()
   private var state = WorkerState()
   private var config = Configuration()
@@ -24,12 +22,10 @@ final class WorkerController {
   private var latestSnapshot: String?
   private var activationObserver: NSObjectProtocol?
 
-  init(root: URL, configURL: URL, demo: Bool = false, allowedOverride: Set<String>? = nil) {
+  init(root: URL) {
     self.root = root
-    self.configURL = configURL
+    configURL = root.appendingPathComponent("peek-config.json")
     animations = AnimationCatalog(root: root)
-    self.demo = demo
-    override = allowedOverride
   }
   func start() {
     activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -70,7 +66,6 @@ final class WorkerController {
         throw CocoaError(.fileReadCorruptFile)
       }
       config = next
-      if let override { config.allowedApps = Array(override) }
     } catch {
       hideAll()
       updateTask?.cancel()
@@ -148,7 +143,7 @@ final class WorkerController {
     let activeBundle = command?.frontmostBundle ?? frontmostBundle
     let observations = placements.map {
       BadgeObservation(
-        bundle: $0.tile.bundle, badge: demo ? "3" : $0.tile.badge ?? "",
+        bundle: $0.tile.bundle, badge: $0.tile.badge ?? "",
         dockVisible: $0.dockVisible,
         appActive: $0.tile.bundle == activeBundle
       )

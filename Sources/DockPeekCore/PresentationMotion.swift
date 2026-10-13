@@ -20,7 +20,7 @@ public struct PresentationMotion: Sendable {
   public init() {}
 
   public mutating func show(
-    at target: CGPoint, screen: CGRect, animation: EntryAnimation, now: Double,
+    at target: CGPoint, screen: CGRect, animation: AnimationIdentifier, now: Double,
     configuration: Configuration = Configuration(),
     registry: AnimationRegistry = AnimationRegistry(),
     badge: String = ""
@@ -35,7 +35,7 @@ public struct PresentationMotion: Sendable {
       interrupted: interrupted)
   }
   public mutating func hide(
-    animation: DismissAnimation, now: Double, configuration: Configuration = Configuration(),
+    animation: AnimationIdentifier, now: Double, configuration: Configuration = Configuration(),
     registry: AnimationRegistry = AnimationRegistry(), badge: String = ""
   ) {
     guard phase != .hidden, phase != .exiting else { return }

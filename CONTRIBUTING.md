@@ -31,11 +31,12 @@ Homebrew packages are changed.
 `make check` runs strict formatting and semantic lint, debug and release builds
 with warnings as errors, Swift Testing with a 100% core line coverage gate, and
 SwiftLint compiler-based unused-import analysis. Reports live in `.build/reports`.
-`make sanitize` runs the tests separately under AddressSanitizer and ThreadSanitizer.
+`make sanitize` runs AddressSanitizer and ThreadSanitizer in disposable build trees.
+Analysis and sanitizer reports remain; compiler caches are removed on exit.
 `make integration` checks the signed packaged app with isolated synthetic
 fixtures; `make performance` checks resource budgets and timer/icon invariants.
 Physical Dock rendering and real login behavior use
-[the manual checklist](docs/manual-verification.md). Experiments receive the same compiler and lint checks as app code.
+[the manual checklist](docs/manual-verification.md).
 
 The pre-commit hook runs `make check`. Stage or stash all changes before a
 commit so the checked working tree matches the index. The commit-msg hook requires

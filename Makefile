@@ -8,7 +8,7 @@ lint:
 format:
 	./scripts/format.sh
 build:
-	swift build
+	swift build --disable-index-store
 test:
 	./scripts/test.sh
 analyze:

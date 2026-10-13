@@ -148,14 +148,7 @@ public struct KeyframeAnimation: Codable, AnimationPlugin {
     case .easeOut: t = ease(t)
     case .easeInOut: t = t * t * (3 - 2 * t)
     }
-    let start = first.pose(in: context, settings: settings)
-    let end = last.pose(in: context, settings: settings)
-    return Pose(
-      point: CGPoint(
-        x: start.point.x + (end.point.x - start.point.x) * t,
-        y: start.point.y + (end.point.y - start.point.y) * t),
-      angle: start.angle + (end.angle - start.angle) * t,
-      squash: start.squash + (end.squash - start.squash) * t,
-      opacity: start.opacity + (end.opacity - start.opacity) * t)
+    return first.pose(in: context, settings: settings).interpolated(
+      to: last.pose(in: context, settings: settings), progress: t)
   }
 }

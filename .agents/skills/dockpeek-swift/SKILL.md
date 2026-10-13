@@ -38,7 +38,7 @@ changed core behavior with Swift Testing, including malformed and boundary input
 Run the checks required by `AGENTS.md`. Use `scripts/test.sh` rather than bare
 `swift test` on Command Line Tools installations; it resolves Testing.framework
 and the macro plugin. `make analyze` needs a fresh verbose build, including test
-compiler invocations. Preserve its dedicated scratch directory and skip detection.
+compiler invocations. Preserve its dedicated scratch build, cleanup trap, reports, and skip detection.
 
 The formatter owns layout; SwiftLint owns semantic and complexity checks. When
 updating tools, verify upstream versions and archive checksums, update bootstrap

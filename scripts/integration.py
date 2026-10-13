@@ -45,7 +45,19 @@ def run(app):
     settings = app / 'Contents/MacOS/DockPeekSettings'
     worker = app / 'Contents/Library/LoginItems/DockPeekWorker.app/Contents/MacOS/DockPeekWorker'
     subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
-    checks = []
+    with tempfile.TemporaryDirectory(prefix='dockpeek-unmarked-') as directory:
+        operator_pid = Path.home() / 'Library/Application Support/Dock Peek/worker.pid'
+        before = operator_pid.read_bytes() if operator_pid.exists() else None
+        live_pid = int(before) if before and before.strip().isdigit() and int(before) > 0 else None
+        was_alive = live_pid and alive(live_pid)
+        rejection = subprocess.run([str(worker), '--verify-root', directory], timeout=5,
+                                   capture_output=True, text=True)
+        assert rejection.returncode != 0, 'Worker accepted an unmarked verification root'
+        assert 'Verification root must contain .dockpeek-verification' in rejection.stderr, rejection.stderr
+        assert not list(Path(directory).iterdir()), 'Rejected root was modified'
+        assert (operator_pid.read_bytes() if operator_pid.exists() else None) == before, 'Operator worker PID changed'
+        assert not was_alive or alive(live_pid), 'Operator worker was stopped'
+    checks = ['unmarked-root-rejection']
     for login_start in [False, True]:
         with tempfile.TemporaryDirectory(prefix='dockpeek-integration-') as directory:
             root = Path(directory)
@@ -72,12 +84,13 @@ def run(app):
                     log = root / 'overlay.log'
                     text = lambda: log.read_text() if log.exists() else ''
                     wait_for(lambda: 'SETTLED' in text(), 'synthetic badge rendered')
-                    duplicate = subprocess.run([str(worker), '--verify-root', str(root)], timeout=5,
-                                               capture_output=True, text=True)
-                    assert duplicate.returncode == 0, duplicate.stderr
-                    assert int((root / 'worker.pid').read_text()) == pid
-                    checks += ['login-start' if login_start else 'settings-quit', 'duplicate-worker', 'stale-pid']
+                    checks += ['login-start' if login_start else 'settings-quit', 'stale-pid']
                     if not login_start:
+                        duplicate = subprocess.run([str(worker), '--verify-root', str(root)], timeout=5,
+                                                   capture_output=True, text=True)
+                        assert duplicate.returncode == 0, duplicate.stderr
+                        assert int((root / 'worker.pid').read_text()) == pid
+                        checks.append('duplicate-worker')
                         verify_interactions(root, text)
                         checks += ['app-activation', 'app-switch', 'badge-update-while-active',
                                    'right-click', 'scroll', 'badge-change', 'dock-return',
@@ -136,8 +149,9 @@ def verify_interactions(root, text):
     hidden = text().count('HIDDEN')
     command(dockVisibility='visible')
     wait_for(lambda: text().count('HIDDEN') > hidden, 'Dock reveal hides overlay')
+    offset = len(text())
     command(dockVisibility='hidden')
-    wait_for(lambda: 'style=slide' in text(), 'Dock return slides')
+    wait_for(lambda: 'ENTER Dock Peek: TextEdit style=slide' in text()[offset:], 'Dock return slides')
     atomic(root / 'probe-mode', 'fail')
     wait_for(lambda: 'PROBE-FAILED exit(3)' in text(), 'probe failure')
     entered = text().count('ENTER')

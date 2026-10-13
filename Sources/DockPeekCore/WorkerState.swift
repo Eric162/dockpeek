@@ -20,7 +20,7 @@ public struct BadgeObservation: Sendable {
 public struct VisibleBadge: Equatable, Sendable {
   public let badge: String
   public let key: String
-  public let entry: EntryAnimation
+  public let entry: AnimationIdentifier
 }
 
 /// Decides what may be shown.
@@ -78,9 +78,9 @@ public struct WorkerState: Sendable {
       covered[observation.bundle] = badge
       return
     }
-    let entry = entryStyle(
-      badge: badge, coveredBadge: covered.removeValue(forKey: observation.bundle),
-      configured: configuration.entryAnimation)
+    let entry: AnimationIdentifier =
+      covered.removeValue(forKey: observation.bundle) == badge
+      ? .slide : configuration.entryAnimation
     visible[observation.bundle] = VisibleBadge(badge: badge, key: key, entry: entry)
   }
 }

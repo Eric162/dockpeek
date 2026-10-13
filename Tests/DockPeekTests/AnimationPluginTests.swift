@@ -14,22 +14,22 @@ struct AnimationPluginTests {
   ) -> AnimationScalar {
     AnimationScalar(value: value, binding: binding, multiplier: multiplier, choices: choices)
   }
+  func setting(
+    _ id: String, kind: AnimationSetting.Kind, value: AnimationValue, name: String? = nil,
+    minimum: Double? = nil, maximum: Double? = nil, choices: [String]? = nil
+  ) -> AnimationSetting {
+    AnimationSetting(
+      id: id, name: name ?? id, kind: kind, defaultValue: value,
+      minimum: minimum, maximum: maximum, choices: choices)
+  }
   func number(_ id: String, value: Double = 1, minimum: Double = 0.1, maximum: Double = 10)
     -> AnimationSetting
   {
-    AnimationSetting(
-      id: id, name: id, kind: .number, defaultValue: .number(value),
-      minimum: minimum, maximum: maximum, choices: nil)
+    setting(id, kind: .number, value: .number(value), minimum: minimum, maximum: maximum)
   }
-  var toggle: AnimationSetting {
-    AnimationSetting(
-      id: "bounce", name: "Bounce", kind: .toggle, defaultValue: .toggle(true),
-      minimum: nil, maximum: nil, choices: nil)
-  }
+  var toggle: AnimationSetting { setting("bounce", kind: .toggle, value: .toggle(true)) }
   var choice: AnimationSetting {
-    AnimationSetting(
-      id: "direction", name: "Direction", kind: .choice, defaultValue: .choice("up"),
-      minimum: nil, maximum: nil, choices: ["up", "down"])
+    setting("direction", kind: .choice, value: .choice("up"), choices: ["up", "down"])
   }
   func descriptor(
     id: String = "test.fade", settings: [AnimationSetting]? = nil,
@@ -102,18 +102,10 @@ struct AnimationPluginTests {
     let badSettings = [
       number("", minimum: 0), number("duration", minimum: 2, maximum: 1),
       number("duration", minimum: .nan), number("duration", maximum: 10_001),
-      AnimationSetting(
-        id: "bad", name: "", kind: .number, defaultValue: .number(1), minimum: nil, maximum: nil,
-        choices: nil),
-      AnimationSetting(
-        id: "bad", name: "Bad", kind: .number, defaultValue: .number(1), minimum: nil, maximum: nil,
-        choices: nil),
-      AnimationSetting(
-        id: "bad", name: "Bad", kind: .choice, defaultValue: .choice("a"), minimum: nil,
-        maximum: nil, choices: []),
-      AnimationSetting(
-        id: "bad", name: "Bad", kind: .choice, defaultValue: .choice("a"), minimum: nil,
-        maximum: nil, choices: ["a", "a"]),
+      setting("bad", kind: .number, value: .number(1), name: ""),
+      setting("bad", kind: .number, value: .number(1)),
+      setting("bad", kind: .choice, value: .choice("a"), choices: []),
+      setting("bad", kind: .choice, value: .choice("a"), choices: ["a", "a"]),
     ]
     for setting in badSettings { #expect(!setting.isValid) }
     var registry = AnimationRegistry()
@@ -200,7 +192,10 @@ struct AnimationPluginTests {
     ] {
       #expect(!self.plugin(frames: frames).isValid)
     }
-    for curve in [AnimationKeyframe.Curve.linear, .easeOut, .easeInOut] {
+    for (curve, midpoint, quarter) in [
+      (AnimationKeyframe.Curve.linear, 0.5, 0.25), (.easeOut, 0.875, 0.578125),
+      (.easeInOut, 0.5, 0.15625),
+    ] {
       let animation = self.plugin(frames: [frame(0, opacity: 0), frame(1, curve: curve)])
       let first = animation.frame(in: context(), progress: 0, settings: [:])
       let middle = animation.frame(in: context(), progress: 0.5, settings: [:])
@@ -208,7 +203,8 @@ struct AnimationPluginTests {
       #expect(first.point == context().initial.point)
       #expect(last.point == target)
       #expect(last.opacity == 1)
-      #expect(middle.opacity > 0 && middle.opacity < 1)
+      #expect(middle.opacity == midpoint)
+      #expect(animation.frame(in: context(), progress: 0.25, settings: [:]).opacity == quarter)
     }
   }
 
@@ -226,19 +222,17 @@ struct AnimationPluginTests {
       #expect(first.opacity == (stage == .entry ? 0 : 1))
       #expect(last.opacity == (stage == .entry ? 1 : 0))
     }
-    for expression in [
-      scalar(), scalar(binding: "setting.duration"),
-      scalar(binding: "setting.direction", choices: ["up": 0, "down": 10]),
+    for (expression, expected) in [
+      (scalar(), 0.0), (scalar(binding: "setting.duration"), 2),
+      (scalar(binding: "setting.direction", choices: ["up": 0, "down": 10]), 10),
     ] {
       let decoded = try JSONDecoder().decode(
         AnimationScalar.self, from: JSONEncoder().encode(expression))
       #expect(
         decoded.resolve(
           in: context(), settings: ["duration": .number(2), "direction": .choice("down")])
-          == expression.resolve(
-            in: context(), settings: ["duration": .number(2), "direction": .choice("down")]))
+          == expected)
     }
-    #expect(SlideAnimation().start(in: context(stage: .dismissal)).point == context().initial.point)
   }
 
   @Test
@@ -284,6 +278,31 @@ struct AnimationPluginTests {
     #expect(motion.step(now: 66)?.point == target && !motion.isAnimating)
   }
 
+  @Test(arguments: [AnimationIdentifier.slide, .tumble, .none])
+  func presentationSettlesAndFollowsTarget(_ animation: AnimationIdentifier) {
+    var motion = PresentationMotion()
+    #expect(motion.step(now: 0) == nil)
+    motion.hide(animation: .slide, now: 0)
+    #expect(motion.step(now: 0) == nil)
+    motion.show(at: target, screen: screen, animation: animation, now: 10)
+    let initial = motion.current.point
+    #expect(motion.step(now: 9)?.point == (animation == .none ? target : initial))
+    #expect(motion.step(now: 12)?.point == target && !motion.isAnimating)
+    motion.target.x += 100
+    #expect(motion.step(now: 13)?.point == motion.target)
+  }
+
+  @Test(arguments: [AnimationIdentifier.slide, .none])
+  func interruptionAndRepeatedHidePreserveDeadline(_ animation: AnimationIdentifier) {
+    var motion = PresentationMotion()
+    motion.show(at: target, screen: screen, animation: .tumble, now: 0)
+    let initial = motion.step(now: 0.2)?.point
+    motion.hide(animation: animation, now: 0.2)
+    motion.hide(animation: .slide, now: 0.3)
+    #expect(motion.step(now: 0.2)?.point == (animation == .none ? nil : initial))
+    #expect(motion.step(now: 0.46) == nil && !motion.isAnimating)
+  }
+
   @Test
   func unsafePluginPosesTerminateImmediately() throws {
     for bad in [
@@ -301,7 +320,9 @@ struct AnimationPluginTests {
       #expect(!motion.isAnimating)
     }
   }
+}
 
+extension AnimationPluginTests {
   @Test
   func legacySettingsAndPluginSelectionsRoundTrip() throws {
     let config = try JSONDecoder().decode(
@@ -317,16 +338,20 @@ struct AnimationPluginTests {
     #expect(config.isValid && next.isValid)
     #expect(next.entrySettings == config.entrySettings)
     #expect(next.entryAnimation.rawValue == "test.fade")
+    var immediate = next
+    immediate.entryAnimation = .slide
+    immediate.dismissAnimation = .none
+    let wire = try #require(
+      JSONSerialization.jsonObject(with: JSONEncoder().encode(immediate)) as? [String: Any])
+    #expect(wire["entryAnimation"] as? String == "slide")
+    #expect(wire["dismissAnimation"] as? String == "none")
     var invalid = config
-    invalid.slideDuration = 15.01
-    #expect(!invalid.isValid)
-    invalid.slideDuration = 1
     invalid.entryAnimation = AnimationIdentifier(rawValue: "INVALID")
     #expect(!invalid.isValid)
   }
 
   @Test
-  func catalogLoadsCachesInstallsAndRemovesPlugins() throws {
+  func catalogInstallsAndRemovesPlugins() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
@@ -337,7 +362,8 @@ struct AnimationPluginTests {
     let installed = try catalog.install(source)
     #expect(installed.descriptor.id == "test.fade")
     catalog.reload()
-    #expect(catalog.errors.isEmpty && catalog.registry.plugins.count == 3)
+    #expect(catalog.errors.isEmpty)
+    #expect(catalog.registry.plugin(id: "test.fade", stage: .entry) != nil)
     #expect(throws: CocoaError.self) { try catalog.install(source) }
     try Data("bad".utf8).write(to: catalog.directory.appendingPathComponent("bad.json"))
     catalog.reload()
@@ -347,10 +373,12 @@ struct AnimationPluginTests {
     #expect(throws: CocoaError.self) { try catalog.install(source) }
     try FileManager.default.removeItem(at: catalog.directory)
     catalog.reload()
-    #expect(catalog.registry.plugins.count == 2 && catalog.errors.isEmpty)
+    #expect(
+      catalog.errors.isEmpty && catalog.registry.plugin(id: "test.fade", stage: .entry) == nil)
     try Data().write(to: catalog.directory)
     catalog.reload()
-    #expect(!catalog.errors.isEmpty && catalog.registry.plugins.count == 2)
+    #expect(!catalog.errors.isEmpty)
+    #expect(catalog.registry.plugin(id: "slide", stage: .dismissal) != nil)
   }
 }
 

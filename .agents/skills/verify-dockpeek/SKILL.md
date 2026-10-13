@@ -12,8 +12,8 @@ integration. Inspect exit status and reports before declaring success.
 
 Use `scripts/test.sh` for targeted Swift Testing runs on Command Line Tools;
 bare `swift test` may fail to find Testing.framework or its macro plugin.
-`make analyze` rebuilds all products and tests in a fresh scratch directory.
-Retain its compiler-command completeness check. Coverage and analysis reports
+`make analyze` rebuilds all products and tests in a fresh disposable scratch directory.
+Retain its compiler-command completeness check; reports survive scratch cleanup. Coverage and analysis reports
 are in `.build/reports`; core coverage must stay at 100%.
 
 Packaged integration launches the actual settings app, worker, and bundled probe

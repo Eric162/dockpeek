@@ -4,7 +4,6 @@ public struct AnimationIdentifier: RawRepresentable, Equatable, Hashable, Codabl
   public static let slide = Self(rawValue: "slide")
   public static let tumble = Self(rawValue: "tumble")
   public static let none = Self(rawValue: "none")
-  public static let allCases: [Self] = [.slide, .tumble, .none]
   public init(from decoder: Decoder) throws {
     let values = try decoder.singleValueContainer()
     let id = try values.decode(String.self)
@@ -18,15 +17,13 @@ public struct AnimationIdentifier: RawRepresentable, Equatable, Hashable, Codabl
     try values.encode(rawValue)
   }
 }
-public typealias EntryAnimation = AnimationIdentifier
-public typealias DismissAnimation = AnimationIdentifier
 
 public struct Configuration: Codable, Sendable {
   public var enabled = true
   public var allowedApps = ["com.openai.codex", "com.anysphere.sand"]
   public var peekFraction = 1.0 / 3
-  public var entryAnimation = EntryAnimation.tumble
-  public var dismissAnimation = DismissAnimation.slide
+  public var entryAnimation = AnimationIdentifier.tumble
+  public var dismissAnimation = AnimationIdentifier.slide
   public var slideDuration = 0.35
   public var dismissDuration = 0.25
   public var tumbleDuration = 1.4
@@ -58,34 +55,23 @@ public struct Configuration: Codable, Sendable {
   public init(from decoder: Decoder) throws {
     self.init()
     let values = try decoder.container(keyedBy: CodingKeys.self)
-    enabled = try values.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
-    allowedApps = try values.decodeIfPresent([String].self, forKey: .allowedApps) ?? allowedApps
-    peekFraction = try values.decodeIfPresent(Double.self, forKey: .peekFraction) ?? peekFraction
-    entryAnimation =
-      try values.decodeIfPresent(EntryAnimation.self, forKey: .entryAnimation) ?? entryAnimation
-    dismissAnimation =
-      try values.decodeIfPresent(DismissAnimation.self, forKey: .dismissAnimation)
-      ?? dismissAnimation
-    slideDuration = try values.decodeIfPresent(Double.self, forKey: .slideDuration) ?? slideDuration
-    dismissDuration =
-      try values.decodeIfPresent(Double.self, forKey: .dismissDuration) ?? dismissDuration
-    tumbleDuration =
-      try values.decodeIfPresent(Double.self, forKey: .tumbleDuration) ?? tumbleDuration
-    scrollDismisses =
-      try values.decodeIfPresent(Bool.self, forKey: .scrollDismisses) ?? scrollDismisses
-    rightClickDismisses =
-      try values.decodeIfPresent(Bool.self, forKey: .rightClickDismisses) ?? rightClickDismisses
-    applicationPaths =
-      try values.decodeIfPresent([String: String].self, forKey: .applicationPaths)
-      ?? applicationPaths
-    entrySettings =
-      try values.decodeIfPresent([String: [String: AnimationValue]].self, forKey: .entrySettings)
-      ?? [:]
-    dismissalSettings =
-      try values.decodeIfPresent(
-        [String: [String: AnimationValue]].self, forKey: .dismissalSettings) ?? [:]
-    openAppOnClick =
-      try values.decodeIfPresent(Bool.self, forKey: .openAppOnClick) ?? openAppOnClick
+    func value<T: Decodable>(_ key: CodingKeys, _ fallback: T) throws -> T {
+      try values.decodeIfPresent(T.self, forKey: key) ?? fallback
+    }
+    enabled = try value(.enabled, enabled)
+    allowedApps = try value(.allowedApps, allowedApps)
+    peekFraction = try value(.peekFraction, peekFraction)
+    entryAnimation = try value(.entryAnimation, entryAnimation)
+    dismissAnimation = try value(.dismissAnimation, dismissAnimation)
+    slideDuration = try value(.slideDuration, slideDuration)
+    dismissDuration = try value(.dismissDuration, dismissDuration)
+    tumbleDuration = try value(.tumbleDuration, tumbleDuration)
+    scrollDismisses = try value(.scrollDismisses, scrollDismisses)
+    rightClickDismisses = try value(.rightClickDismisses, rightClickDismisses)
+    applicationPaths = try value(.applicationPaths, applicationPaths)
+    entrySettings = try value(.entrySettings, entrySettings)
+    dismissalSettings = try value(.dismissalSettings, dismissalSettings)
+    openAppOnClick = try value(.openAppOnClick, openAppOnClick)
   }
   public var isValid: Bool {
     peekFraction > 0 && peekFraction <= 1

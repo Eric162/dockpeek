@@ -24,12 +24,6 @@ let package = Package(
       name: "DockPeekWorker", dependencies: ["DockPeekCore", "DockPeekRuntime"],
       swiftSettings: strictSettings),
     .executableTarget(name: "DockTileProbe", swiftSettings: strictSettings),
-    .executableTarget(
-      name: "DockBounceFilter", path: "Experiments/BounceFilter", swiftSettings: strictSettings),
-    .executableTarget(
-      name: "BadgeFixture", path: "Experiments/BadgeFixture", swiftSettings: strictSettings),
-    .executableTarget(
-      name: "BounceFixture", path: "Experiments/BounceFixture", swiftSettings: strictSettings),
     .testTarget(
       name: "DockPeekTests", dependencies: ["DockPeekCore", "DockPeekRuntime", "DockPeekSettings"],
       swiftSettings: strictSettings),

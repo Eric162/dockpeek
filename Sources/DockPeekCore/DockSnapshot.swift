@@ -15,43 +15,20 @@ public struct Tile: Sendable {
   public let badge: String?
   public let rect: CGRect
 }
-private let snapshotExpressions: [String: NSRegularExpression] = {
-  let patterns = [
-    "AXTitle=([^\\n]+)", "AXURL=([^\\n]+)", "AXStatusLabel=([^\\n]+)",
-    "AXFrame=.*value = x:([0-9.-]+) y:([0-9.-]+) w:([0-9.-]+) h:([0-9.-]+)",
-  ]
-  return Dictionary(
-    uniqueKeysWithValues: patterns.compactMap { pattern in
-      (try? NSRegularExpression(pattern: pattern)).map { (pattern, $0) }
-    })
-}()
 
-@Sendable func match(_ pattern: String, _ text: String) -> [String]? {
-  guard let regex = snapshotExpressions[pattern] ?? (try? NSRegularExpression(pattern: pattern)),
-    let found = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text))
-  else {
-    return nil
-  }
-  var captures: [String] = []
-  for index in 1..<found.numberOfRanges {
-    guard let range = Range(found.range(at: index), in: text) else { return nil }
-    captures.append(String(text[range]))
-  }
-  return captures
-}
 @Sendable public func tiles(_ snapshot: String) -> [Tile] {
   snapshot.components(separatedBy: "    ELEMENT\n").compactMap { section -> Tile? in
-    guard let name = match("AXTitle=([^\\n]+)", section)?.first,
-      let path = match("AXURL=([^\\n]+)", section)?.first,
-      let url = URL(string: path), let bundle = Bundle(url: url)?.bundleIdentifier,
-      let coordinates = match(
-        "AXFrame=.*value = x:([0-9.-]+) y:([0-9.-]+) w:([0-9.-]+) h:([0-9.-]+)", section)
+    guard let name = section.firstMatch(of: #/AXTitle=([^\n]+)/#)?.1,
+      let path = section.firstMatch(of: #/AXURL=([^\n]+)/#)?.1,
+      let url = URL(string: String(path)), let bundle = Bundle(url: url)?.bundleIdentifier,
+      let frame = section.firstMatch(
+        of: #/AXFrame=.*value = x:([0-9.-]+) y:([0-9.-]+) w:([0-9.-]+) h:([0-9.-]+)/#),
+      let x = Double(frame.1), let y = Double(frame.2), let width = Double(frame.3),
+      let height = Double(frame.4), [x, y, width, height].allSatisfy(\.isFinite)
     else { return nil }
-    let numbers = coordinates.compactMap { Double($0) }
-    guard numbers.count == 4, numbers.allSatisfy(\.isFinite) else { return nil }
     return Tile(
-      bundle: bundle, name: name, url: url,
-      badge: match("AXStatusLabel=([^\\n]+)", section)?.first,
-      rect: CGRect(x: numbers[0], y: numbers[1], width: numbers[2], height: numbers[3]))
+      bundle: bundle, name: String(name), url: url,
+      badge: section.firstMatch(of: #/AXStatusLabel=([^\n]+)/#).map { String($0.1) },
+      rect: CGRect(x: x, y: y, width: width, height: height))
   }
 }

@@ -6,8 +6,8 @@ git diff --cached --check
 for script in scripts/*.sh .githooks/* build.sh; do sh -n "$script"; done
 python3 -m unittest discover -s scripts/tests -v
 ./scripts/lint.sh
-swift build
-swift build -c release
+swift build --disable-index-store
+swift build --disable-index-store -c release
 ./scripts/test.sh --enable-code-coverage
 mkdir -p .build/reports
 cp "$(swift test --show-codecov-path)" .build/reports/coverage.json

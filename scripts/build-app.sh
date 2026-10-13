@@ -3,8 +3,8 @@ set -eu
 cd "$(dirname "$0")/.."
 configuration=${1:-release}
 case "$configuration" in debug|release) ;; *) echo 'Use debug or release.' >&2; exit 1;; esac
-swift build -c "$configuration" -Xswiftc -warnings-as-errors
-bin_path=$(swift build -c "$configuration" --show-bin-path)
+swift build --disable-index-store -c "$configuration" -Xswiftc -warnings-as-errors
+bin_path=$(swift build --disable-index-store -c "$configuration" --show-bin-path)
 python3 scripts/package_app.py "$bin_path"
 identity=${CODE_SIGN_IDENTITY:--}
 codesign --force --sign "$identity" 'dist/Dock Peek.app/Contents/Resources/Dock Tile Probe.app'

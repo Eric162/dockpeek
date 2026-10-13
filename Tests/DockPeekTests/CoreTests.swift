@@ -12,7 +12,7 @@ struct CoreTests {
     #expect(!config.isValid)
   }
 
-  @Test(arguments: [0.0, -1.0, Double.infinity, Double.nan])
+  @Test(arguments: [0.0, -1.0, 15.01, Double.infinity, Double.nan])
   func testInvalidDurations(_ duration: Double) {
     for keyPath in [
       \Configuration.slideDuration, \Configuration.dismissDuration,
@@ -31,46 +31,29 @@ struct CoreTests {
     #expect(!config.isValid)
     config.allowedApps = []
     #expect(config.isValid)
-    #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(
-        Configuration.self, from: Data(#"{"dismissAnimation":"TUMBLE"}"#.utf8))
-    }
-    #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(Configuration.self, from: Data(#"{"enabled":1}"#.utf8))
+    for json in [
+      #"{"dismissAnimation":"TUMBLE"}"#, #"{"entryAnimation":"INVALID"}"#, #"{"enabled":1}"#,
+    ] {
+      #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(Configuration.self, from: Data(json.utf8))
+      }
     }
   }
 
   @Test
-  func testRegexRejectsInvalidPatternsAndMissingCaptures() {
-    #expect(match("[", "text") == nil)
-    #expect(match("(a)?b", "b") == nil)
-    #expect(match("(🚢)", "🚢") == ["🚢"])
-  }
-
-  @Test
-  func testConfigurationDefaultsAndValidation() throws {
-    var config = try JSONDecoder().decode(Configuration.self, from: Data("{}".utf8))
+  func testConfigurationDefaults() throws {
+    let config = try JSONDecoder().decode(Configuration.self, from: Data("{}".utf8))
     #expect(config.isValid)
     #expect(config.openAppOnClick && config.scrollDismisses && config.rightClickDismisses)
-    config.peekFraction = 0
-    #expect(!(config.isValid))
-    config.peekFraction = 0.4
-    config.tumbleDuration = .infinity
-    #expect(!(config.isValid))
-    config.tumbleDuration = 1.4
-    #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode(
-        Configuration.self, from: Data(#"{"entryAnimation":"INVALID"}"#.utf8))
-    }
   }
 
   @Test
   func testPeekFractionAtDifferentScreenEdges() {
     for edge in [0.0, -1080.0, 1692.0] {
-      for fraction in [0.1, 1.0 / 3, 1.0] {
-        let visible = restingY(edge: edge, fraction: fraction) + iconTop - edge
-        #expect(abs(visible - max(badgeDiameter, iconSize * fraction)) <= 0.0001)
-        #expect(visible >= badgeDiameter)
+      for (fraction, expected) in [(0.1, 23.0), (1.0 / 3, 23), (1.0, 54)] {
+        let visible = restingY(edge: edge, fraction: fraction) + 91 - edge
+        #expect(abs(visible - expected) <= 0.0001)
+        #expect(visible >= 23)
       }
     }
   }
@@ -108,35 +91,12 @@ struct CoreTests {
   }
 
   @Test
-  func testDockReturnSlidesAndNewBadgesUseConfiguredAnimation() {
-    #expect(entryStyle(badge: "3", coveredBadge: "3", configured: .tumble) == .slide)
-    #expect(entryStyle(badge: "8", coveredBadge: "3", configured: .tumble) == .tumble)
-  }
-
-  @Test
-  func testTemporaryRequestExpiresAndRoundTrips() throws {
-    let now = Date()
-    let request = PeekTestRequest(
-      bundleIdentifier: "test.app", applicationPath: "/Test.app", now: now)
-    #expect(request.isActive)
-    #expect(request.expiresAt.timeIntervalSince(now) == 10)
-    #expect(
-      !(PeekTestRequest(
-        bundleIdentifier: "test.app", applicationPath: "/Test.app", now: now.addingTimeInterval(-11)
-      ).isActive))
-    let decoded = try JSONDecoder().decode(
-      PeekTestRequest.self, from: JSONEncoder().encode(request))
-    #expect(decoded.token == request.token)
-    #expect(decoded.bundleIdentifier == request.bundleIdentifier)
-  }
-
-  @Test
   func testDockSnapshotBadgesClearAndMalformedGeometryIsIgnored() {
     let url = URL(fileURLWithPath: "/System/Applications/TextEdit.app")
     func snapshot(badge: String?, x: String = "120") -> String {
       """
           ELEMENT
-          AXTitle=TextEdit
+          AXTitle=TextEdit 🚢
           AXURL=\(url.absoluteString)
           AXFrame=value = x:\(x) y:1692 w:67 h:83
       """ + (badge.map { "\n    AXStatusLabel=\($0)" } ?? "")
@@ -144,10 +104,13 @@ struct CoreTests {
     let first = tiles(snapshot(badge: "3"))
     #expect(first.count == 1)
     #expect(first.first?.badge == "3")
+    #expect(first.first?.name == "TextEdit 🚢")
     #expect(first.first?.rect.minX == 120)
     #expect(tiles(snapshot(badge: "8")).first?.badge == "8")
     #expect(tiles(snapshot(badge: nil)).first?.badge == nil)
     #expect(tiles(snapshot(badge: "3", x: "-")).isEmpty)
+    #expect(
+      tiles(snapshot(badge: "3").replacingOccurrences(of: "AXTitle=TextEdit 🚢", with: "")).isEmpty)
     #expect(tiles("unrelated AX output").isEmpty)
   }
 }
