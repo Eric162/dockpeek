@@ -7,6 +7,8 @@ final class Presentation {
   let view = IconView(frame: NSRect(x: 0, y: 0, width: panelSize, height: panelSize))
   var motion = PresentationMotion()
   var badge = ""
+  var configuration = Configuration()
+  var previewToken: String?
   private var imagePath = ""
   private(set) var iconLoads = 0
 
@@ -40,7 +42,7 @@ final class Presentation {
     animate(now: ProcessInfo.processInfo.systemUptime)
     panel.orderFrontRegardless()
   }
-  func hide(configuration: Configuration, registry: AnimationRegistry) {
+  func hide(registry: AnimationRegistry) {
     let previous = motion.phase
     motion.hide(
       animation: configuration.dismissAnimation, now: ProcessInfo.processInfo.systemUptime,

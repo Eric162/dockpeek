@@ -108,15 +108,21 @@ final class WorkerController: NSObject {
     }
   }
   private func testRequest() -> PeekTestRequest? {
-    (try? Data(contentsOf: root.appendingPathComponent("test-request.json")))
-      .flatMap { try? JSONDecoder().decode(PeekTestRequest.self, from: $0) }
-      .flatMap { $0.isActive ? $0 : nil }
+    guard let data = try? Data(contentsOf: root.appendingPathComponent("test-request.json")),
+      let request = try? JSONDecoder().decode(PeekTestRequest.self, from: data), request.isActive
+    else { return nil }
+    if let draft = request.configuration,
+      !draft.isValid || !animations.registry.accepts(draft)
+    {
+      return nil
+    }
+    return request
   }
   private func hideAll() {
     latestSnapshot = nil
     _ = state.update(configuration: nil, observations: nil)
     for presentation in presentations.values {
-      presentation.hide(configuration: config, registry: animations.registry)
+      presentation.hide(registry: animations.registry)
     }
     ensureAnimationTimer()
     writeDiagnostics()
@@ -127,6 +133,7 @@ final class WorkerController: NSObject {
     writeDiagnostics()
   }
   @objc private func previewRequested() {
+    animations.reload()
     guard !stopping, let test = testRequest() else { return }
     apply(
       snapshot: latestSnapshot ?? "", test: test,
@@ -162,10 +169,15 @@ final class WorkerController: NSObject {
     }
     let desired = state.update(configuration: config, observations: observations, test: test)
     for placement in placements {
-      if let badge = desired[placement.tile.bundle] { present(placement, badge: badge) }
+      if let badge = desired[placement.tile.bundle] {
+        let preview = test?.bundleIdentifier == placement.tile.bundle ? test : nil
+        present(
+          placement, badge: badge, configuration: preview?.configuration ?? config, preview: preview
+        )
+      }
     }
     for (bundle, presentation) in presentations where desired[bundle] == nil {
-      presentation.hide(configuration: config, registry: animations.registry)
+      presentation.hide(registry: animations.registry)
     }
     handle(command: command)
     ensureAnimationTimer()
@@ -196,9 +208,15 @@ final class WorkerController: NSObject {
     }
     return Placement(tile: tile, screen: screen, dockVisible: dockVisible)
   }
-  private func present(_ placement: Placement, badge: VisibleBadge) {
+  private func present(
+    _ placement: Placement, badge: VisibleBadge, configuration: Configuration,
+    preview: PeekTestRequest?
+  ) {
     let tile = placement.tile
     let presentation = presentations[tile.bundle] ?? Presentation(name: tile.name)
+    let restart = presentation.previewToken != preview?.token
+    presentation.previewToken = preview?.token
+    presentation.configuration = configuration
     presentation.updateIcon(path: tile.url.path)
     if presentation.view.badge != badge.badge {
       presentation.view.badge = badge.badge
@@ -209,35 +227,35 @@ final class WorkerController: NSObject {
     let dismiss = { [weak self, weak presentation] in
       guard let self, let presentation else { return }
       state.dismiss(tile.bundle)
-      presentation.hide(configuration: config, registry: animations.registry)
+      presentation.hide(registry: animations.registry)
       ensureAnimationTimer()
     }
-    presentation.view.onClick = { [weak self] in
-      guard let self, config.openAppOnClick else { return }
+    presentation.view.onClick = {
+      guard configuration.openAppOnClick else { return }
       let options = NSWorkspace.OpenConfiguration()
       options.activates = true
       NSWorkspace.shared.openApplication(at: tile.url, configuration: options) { _, error in
         if let error { log("OPEN-FAILED \(error.localizedDescription)") }
       }
     }
-    presentation.view.onScrollDown = { [weak self] in
-      guard self?.config.scrollDismisses == true else { return }
+    presentation.view.onScrollDown = {
+      guard configuration.scrollDismisses else { return }
       log("SCROLL-DISMISS \(tile.bundle)")
       dismiss()
     }
-    presentation.view.onRightClick = { [weak self] in
-      guard self?.config.rightClickDismisses == true else { return }
+    presentation.view.onRightClick = {
+      guard configuration.rightClickDismisses else { return }
       log("RIGHT-CLICK-DISMISS \(tile.bundle)")
       dismiss()
     }
     let screen = placement.screen.frame
     let point = CGPoint(
       x: min(max(tile.rect.midX - 64, screen.minX), screen.maxX - panelSize),
-      y: restingY(edge: screen.minY, fraction: config.peekFraction))
-    if presentation.motion.phase == .hidden || presentation.motion.phase == .exiting {
+      y: restingY(edge: screen.minY, fraction: configuration.peekFraction))
+    if restart || presentation.motion.phase == .hidden || presentation.motion.phase == .exiting {
       presentation.show(
         at: point, screen: screen, animation: badge.entry,
-        configuration: config, registry: animations.registry)
+        configuration: configuration, registry: animations.registry)
     } else if presentation.motion.target != point {
       presentation.motion.target = point
       if presentation.motion.phase == .shown {

@@ -134,11 +134,16 @@ def verify_interactions(root, text):
     assert diagnostics()['visible'] == 0, 'Active app peek reappeared on badge change'
     atomic(root / 'probe-mode', 'hang')
     time.sleep(1.1)
-    atomic(root / 'test-request.json', json.dumps({
+    saved = (root / 'peek-config.json').read_bytes()
+    offset = len(text())
+    preview = {
         'bundleIdentifier': 'com.apple.TextEdit',
         'applicationPath': '/System/Applications/TextEdit.app',
         'token': str(uuid.uuid4()), 'expiresAt': time.time() - 978307200 + 10,
-    }))
+        'configuration': {'entryAnimation': 'slide', 'dismissAnimation': 'none', 'peekFraction': 0.8,
+                          'entrySettings': {'slide': {'duration': 0.15}}},
+    }
+    atomic(root / 'test-request.json', json.dumps(preview))
     notifier = ('import Foundation\n'
                 'DistributedNotificationCenter.default().postNotificationName('
                 'Notification.Name("local.dock-peek.test-request"), '
@@ -147,11 +152,20 @@ def verify_interactions(root, text):
     subprocess.run(['swift', '-e', notifier, str(root)], check=True, timeout=15)
     wait_for(lambda: diagnostics().get('visible') == 1,
              'test preview appears without waiting for the hanging probe', timeout=2)
+    assert 'ENTER Dock Peek: TextEdit style=slide' in text()[offset:], 'Preview ignored draft entry'
+    assert (root / 'peek-config.json').read_bytes() == saved, 'Preview saved draft settings'
     atomic(root / 'probe-mode', 'normal')
     command(dockVisibility='visible', frontmostBundle='com.apple.TextEdit')
     reads = diagnostics()['probeReads']
     wait_for(lambda: diagnostics().get('probeReads', 0) > reads + 1, 'preview observed with visible Dock')
     assert diagnostics()['visible'] == 1, 'Visible Dock suppressed the preview'
+    offset = len(text())
+    preview['token'] = str(uuid.uuid4())
+    preview['configuration']['entryAnimation'] = 'none'
+    atomic(root / 'test-request.json', json.dumps(preview))
+    subprocess.run(['swift', '-e', notifier, str(root)], check=True, timeout=15)
+    wait_for(lambda: 'ENTER Dock Peek: TextEdit style=none' in text()[offset:], 'retest restarts with new draft')
+    assert (root / 'peek-config.json').read_bytes() == saved, 'Retest saved draft settings'
     (root / 'test-request.json').unlink()
     wait_for(lambda: diagnostics().get('visible') == 0, 'ordinary active-app badge stays hidden after preview')
     command(dockVisibility='hidden', frontmostBundle='other.app')

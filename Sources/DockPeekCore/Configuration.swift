@@ -18,7 +18,7 @@ public struct AnimationIdentifier: RawRepresentable, Equatable, Hashable, Codabl
   }
 }
 
-public struct Configuration: Codable, Sendable {
+public struct Configuration: Codable, Equatable, Sendable {
   public var enabled = true
   public var allowedApps = ["com.openai.codex", "com.anysphere.sand"]
   public var peekFraction = 1.0 / 3

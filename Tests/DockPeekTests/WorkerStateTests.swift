@@ -115,6 +115,33 @@ struct WorkerStateTests {
       ).isEmpty)
   }
   @Test
+  func previewDraftChangesOnlyThePreviewAndExpires() throws {
+    var state = WorkerState()
+    var saved = config
+    saved.allowedApps.append("other.app")
+    var draft = saved
+    draft.entryAnimation = .none
+    draft.enabled = false
+    _ = state.update(configuration: saved, observations: [observation(active: true)])
+    let request = PeekTestRequest(
+      bundleIdentifier: "test.app", applicationPath: "/Test.app", configuration: draft, now: now)
+    let observations = [observation(), BadgeObservation(bundle: "other.app", badge: "5")]
+    let visible = state.update(
+      configuration: saved, observations: observations, test: request, now: now)
+    #expect(visible["test.app"]?.entry == AnimationIdentifier.none)
+    #expect(visible["other.app"]?.entry == .tumble)
+    #expect(
+      state.update(
+        configuration: saved, observations: observations, test: request, now: request.expiresAt
+      )["test.app"]?.entry == .tumble)
+    let legacy = try JSONDecoder().decode(
+      PeekTestRequest.self,
+      from: Data(
+        #"{"bundleIdentifier":"test.app","applicationPath":"/Test.app","expiresAt":110,"token":"legacy"}"#
+          .utf8))
+    #expect(legacy.configuration == nil)
+  }
+  @Test
   func temporaryTestOverridesDisabledSettingsAndExpiresAtBoundary() throws {
     var state = WorkerState()
     var disabled = config

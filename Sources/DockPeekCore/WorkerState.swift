@@ -58,6 +58,9 @@ public struct WorkerState: Sendable {
   private mutating func evaluate(
     _ observation: BadgeObservation, configuration: Configuration, test: PeekTestRequest?
   ) {
+    let configuration =
+      test?.bundleIdentifier == observation.bundle
+      ? test?.configuration ?? configuration : configuration
     let badge: String
     let key: String
     if let test, test.bundleIdentifier == observation.bundle {
@@ -80,8 +83,9 @@ public struct WorkerState: Sendable {
       covered[observation.bundle] = badge
       return
     }
+    let wasCovered = covered.removeValue(forKey: observation.bundle) == badge
     let entry: AnimationIdentifier =
-      covered.removeValue(forKey: observation.bundle) == badge
+      wasCovered && test?.bundleIdentifier != observation.bundle
       ? .slide : configuration.entryAnimation
     visible[observation.bundle] = VisibleBadge(badge: badge, key: key, entry: entry)
   }

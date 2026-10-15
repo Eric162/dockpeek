@@ -14,6 +14,14 @@ struct AppChoice: Identifiable {
 @MainActor
 final class SettingsModel: ObservableObject {
   @Published var config = Configuration()
+  @Published private var savedConfig: Configuration?
+  var isDirty: Bool {
+    var draft = config
+    var saved = savedConfig
+    draft.allowedApps.sort()
+    saved?.allowedApps.sort()
+    return draft != saved
+  }
   @Published var message = ""
   @Published var error = false
   let root: URL
@@ -93,6 +101,7 @@ final class SettingsModel: ObservableObject {
     animations.reload()
     do {
       config = try JSONDecoder().decode(Configuration.self, from: Data(contentsOf: configURL))
+      savedConfig = config
     } catch {
       message = "Could not load settings: \(error.localizedDescription)"
       self.error = true
@@ -107,6 +116,7 @@ final class SettingsModel: ObservableObject {
       let encoder = JSONEncoder()
       encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
       try encoder.encode(config).write(to: configURL, options: .atomic)
+      savedConfig = config
       message = "Saved."
       error = false
     } catch {
@@ -119,8 +129,14 @@ final class SettingsModel: ObservableObject {
     applicationPath: String = Bundle.main.bundlePath
   ) {
     do {
+      animations.reload()
+      guard config.isValid, animations.registry.accepts(config) else {
+        message = "Choose valid animation settings before testing."
+        error = true
+        return
+      }
       let request = PeekTestRequest(
-        bundleIdentifier: bundleIdentifier, applicationPath: applicationPath)
+        bundleIdentifier: bundleIdentifier, applicationPath: applicationPath, configuration: config)
       try JSONEncoder().encode(request).write(
         to: root.appendingPathComponent("test-request.json"), options: .atomic)
       DistributedNotificationCenter.default().postNotificationName(
@@ -143,6 +159,8 @@ struct SettingsView: View {
     VStack(spacing: 0) {
       Form {
         Section("Background") {
+          Text("Closing this window keeps Dock Peek running.")
+            .font(.caption).foregroundStyle(.secondary)
           Toggle(
             "Start at login",
             isOn: Binding(
@@ -197,7 +215,11 @@ struct SettingsView: View {
           }
           AnimationSettingsView(model: model, stage: .entry)
           AnimationSettingsView(model: model, stage: .dismissal)
-          Button("Install animation…", systemImage: "plus") { model.installAnimation() }
+          HStack {
+            Button("Install animation…", systemImage: "plus") { model.installAnimation() }
+            Button("Copy AI prompt", systemImage: "doc.on.doc") { model.copyAnimationPrompt() }
+              .help("Copy instructions and a JSON example for an AI agent to build an animation.")
+          }
           ForEach(model.animations.errors, id: \.self) { error in
             Text(error).font(.caption).foregroundStyle(.red)
           }
@@ -215,7 +237,7 @@ struct SettingsView: View {
           background.prepare()
           model.testPeek()
         }.disabled(background.requiresApproval)
-        Button("Apply") { model.apply() }.keyboardShortcut(.defaultAction)
+        Button("Apply") { model.apply() }.keyboardShortcut(.defaultAction).disabled(!model.isDirty)
       }.padding()
     }.frame(minWidth: 470, minHeight: 840)
       .task {
@@ -261,7 +283,7 @@ struct DockPeekSettingsApp: App {
   @StateObject private var background = BackgroundService(
     root: RuntimePaths.root())
   var body: some Scene {
-    WindowGroup("Dock Peek") { SettingsView(model: model, background: background) }
+    WindowGroup("Dock Peek Settings") { SettingsView(model: model, background: background) }
       .defaultSize(width: 500, height: 860)
   }
 }
