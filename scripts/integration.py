@@ -92,7 +92,7 @@ def run(app):
                         assert int((root / 'worker.pid').read_text()) == pid
                         checks.append('duplicate-worker')
                         verify_interactions(root, text)
-                        checks += ['app-activation', 'app-switch', 'badge-update-while-active',
+                        checks += ['app-activation', 'app-switch', 'badge-update-while-active', 'active-app-preview',
                                    'right-click', 'scroll', 'badge-change', 'dock-return',
                                    'probe-failure', 'probe-timeout', 'invalid-config', 'recovery',
                                    'plugin-entry', 'plugin-dismissal', 'plugin-timer-stop',
@@ -132,6 +132,14 @@ def verify_interactions(root, text):
     atomic(root / 'snapshot.txt', snapshot('4'))
     wait_for(lambda: diagnostics().get('probeReads', 0) > reads + 1, 'badge observed while active')
     assert diagnostics()['visible'] == 0, 'Active app peek reappeared on badge change'
+    atomic(root / 'test-request.json', json.dumps({
+        'bundleIdentifier': 'com.apple.TextEdit',
+        'applicationPath': '/System/Applications/TextEdit.app',
+        'token': str(uuid.uuid4()), 'expiresAt': time.time() - 978307200 + 10,
+    }))
+    wait_for(lambda: diagnostics().get('visible') == 1, 'test preview appears while its app is active')
+    (root / 'test-request.json').unlink()
+    wait_for(lambda: diagnostics().get('visible') == 0, 'ordinary active-app badge stays hidden after preview')
     command(dockVisibility='hidden', frontmostBundle='other.app')
     wait_for(lambda: 'BADGE com.apple.TextEdit=4' in text(), 'switching away restores latest badge')
     wait_for(lambda: diagnostics().get('visible') == 1, 'background app peek restored')

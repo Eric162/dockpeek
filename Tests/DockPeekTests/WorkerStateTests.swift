@@ -100,6 +100,20 @@ struct WorkerStateTests {
     #expect(state.update(configuration: config, observations: [observation()]).count == 1)
   }
   @Test
+  func previewRemainsVisibleWhileSettingsIsActive() {
+    var state = WorkerState()
+    let request = PeekTestRequest(
+      bundleIdentifier: "test.app", applicationPath: "/Test.app", now: now)
+    let result = state.update(
+      configuration: config, observations: [observation(active: true)], test: request, now: now)
+    #expect(result["test.app"]?.badge == "3")
+    #expect(
+      state.update(
+        configuration: config, observations: [observation(active: true)], test: request,
+        now: request.expiresAt
+      ).isEmpty)
+  }
+  @Test
   func temporaryTestOverridesDisabledSettingsAndExpiresAtBoundary() throws {
     var state = WorkerState()
     var disabled = config
