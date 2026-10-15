@@ -123,6 +123,9 @@ final class SettingsModel: ObservableObject {
         bundleIdentifier: bundleIdentifier, applicationPath: applicationPath)
       try JSONEncoder().encode(request).write(
         to: root.appendingPathComponent("test-request.json"), options: .atomic)
+      DistributedNotificationCenter.default().postNotificationName(
+        PeekTestRequest.notificationName, object: root.path, userInfo: nil, deliverImmediately: true
+      )
       message = "Test running."
       error = false
     } catch {

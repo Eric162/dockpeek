@@ -21,6 +21,7 @@ final class WorkerController {
   private var probeReads = 0
   private var latestSnapshot: String?
   private var activationObserver: NSObjectProtocol?
+  private var previewObserver: NSObjectProtocol?
 
   init(root: URL) {
     self.root = root
@@ -28,6 +29,17 @@ final class WorkerController {
     animations = AnimationCatalog(root: root)
   }
   func start() {
+    previewObserver = DistributedNotificationCenter.default().addObserver(
+      forName: PeekTestRequest.notificationName, object: root.path, queue: .main
+    ) { [weak self] _ in
+      MainActor.assumeIsolated {
+        guard let self, !self.stopping, let test = self.testRequest() else { return }
+        self.apply(
+          snapshot: self.latestSnapshot ?? "", test: test,
+          frontmostBundle: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+        self.writeDiagnostics()
+      }
+    }
     activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
       forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
     ) { [weak self] notification in
@@ -43,6 +55,10 @@ final class WorkerController {
   }
   func stop() async {
     stopping = true
+    if let previewObserver {
+      DistributedNotificationCenter.default().removeObserver(previewObserver)
+      self.previewObserver = nil
+    }
     if let activationObserver {
       NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
       self.activationObserver = nil

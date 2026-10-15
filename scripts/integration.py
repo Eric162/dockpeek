@@ -132,12 +132,21 @@ def verify_interactions(root, text):
     atomic(root / 'snapshot.txt', snapshot('4'))
     wait_for(lambda: diagnostics().get('probeReads', 0) > reads + 1, 'badge observed while active')
     assert diagnostics()['visible'] == 0, 'Active app peek reappeared on badge change'
+    atomic(root / 'probe-mode', 'hang')
+    time.sleep(1.1)
     atomic(root / 'test-request.json', json.dumps({
         'bundleIdentifier': 'com.apple.TextEdit',
         'applicationPath': '/System/Applications/TextEdit.app',
         'token': str(uuid.uuid4()), 'expiresAt': time.time() - 978307200 + 10,
     }))
-    wait_for(lambda: diagnostics().get('visible') == 1, 'test preview appears while its app is active')
+    notifier = ('ObjC.import("Foundation"); '
+                '$.NSDistributedNotificationCenter.defaultCenter.'
+                'postNotificationNameObjectUserInfoDeliverImmediately('
+                f'"local.dock-peek.test-request", {json.dumps(str(root))}, null, true)')
+    subprocess.run(['osascript', '-l', 'JavaScript', '-e', notifier], check=True, timeout=5)
+    wait_for(lambda: diagnostics().get('visible') == 1,
+             'test preview appears without waiting for the hanging probe', timeout=2)
+    atomic(root / 'probe-mode', 'normal')
     command(dockVisibility='visible', frontmostBundle='com.apple.TextEdit')
     reads = diagnostics()['probeReads']
     wait_for(lambda: diagnostics().get('probeReads', 0) > reads + 1, 'preview observed with visible Dock')

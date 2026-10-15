@@ -1,6 +1,7 @@
 import Foundation
 
 public struct PeekTestRequest: Codable, Sendable {
+  public static let notificationName = Notification.Name("local.dock-peek.test-request")
   public let bundleIdentifier: String
   public let applicationPath: String
   public let expiresAt: Date
