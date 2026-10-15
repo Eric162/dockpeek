@@ -139,11 +139,12 @@ def verify_interactions(root, text):
         'applicationPath': '/System/Applications/TextEdit.app',
         'token': str(uuid.uuid4()), 'expiresAt': time.time() - 978307200 + 10,
     }))
-    notifier = ('ObjC.import("Foundation"); '
-                '$.NSDistributedNotificationCenter.defaultCenter.'
-                'postNotificationNameObjectUserInfoDeliverImmediately('
-                f'"local.dock-peek.test-request", {json.dumps(str(root))}, null, true)')
-    subprocess.run(['osascript', '-l', 'JavaScript', '-e', notifier], check=True, timeout=5)
+    notifier = ('import Foundation\n'
+                'DistributedNotificationCenter.default().postNotificationName('
+                'Notification.Name("local.dock-peek.test-request"), '
+                'object: CommandLine.arguments[1], userInfo: nil, deliverImmediately: true)\n'
+                'RunLoop.current.run(until: Date().addingTimeInterval(0.1))')
+    subprocess.run(['swift', '-e', notifier, str(root)], check=True, timeout=15)
     wait_for(lambda: diagnostics().get('visible') == 1,
              'test preview appears without waiting for the hanging probe', timeout=2)
     atomic(root / 'probe-mode', 'normal')
@@ -178,8 +179,9 @@ def verify_interactions(root, text):
     entered = text().count('ENTER')
     atomic(root / 'probe-mode', 'normal')
     wait_for(lambda: text().count('ENTER') > entered, 'probe recovery')
+    offset = len(text())
     atomic(root / 'probe-mode', 'hang')
-    wait_for(lambda: 'PROBE-FAILED timedOut' in text(), 'probe timeout', timeout=10)
+    wait_for(lambda: 'PROBE-FAILED timedOut' in text()[offset:], 'probe timeout', timeout=10)
     entered = text().count('ENTER')
     atomic(root / 'probe-mode', 'normal')
     wait_for(lambda: text().count('ENTER') > entered, 'timeout recovery')

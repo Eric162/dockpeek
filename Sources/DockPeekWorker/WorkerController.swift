@@ -3,7 +3,7 @@ import DockPeekCore
 import DockPeekRuntime
 
 @MainActor
-final class WorkerController {
+final class WorkerController: NSObject {
   let root: URL
   private let configURL: URL
   private let animations: AnimationCatalog
@@ -21,7 +21,6 @@ final class WorkerController {
   private var probeReads = 0
   private var latestSnapshot: String?
   private var activationObserver: NSObjectProtocol?
-  private var previewObserver: NSObjectProtocol?
 
   init(root: URL) {
     self.root = root
@@ -29,17 +28,9 @@ final class WorkerController {
     animations = AnimationCatalog(root: root)
   }
   func start() {
-    previewObserver = DistributedNotificationCenter.default().addObserver(
-      forName: PeekTestRequest.notificationName, object: root.path, queue: .main
-    ) { [weak self] _ in
-      MainActor.assumeIsolated {
-        guard let self, !self.stopping, let test = self.testRequest() else { return }
-        self.apply(
-          snapshot: self.latestSnapshot ?? "", test: test,
-          frontmostBundle: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
-        self.writeDiagnostics()
-      }
-    }
+    DistributedNotificationCenter.default().addObserver(
+      self, selector: #selector(previewRequested), name: PeekTestRequest.notificationName,
+      object: root.path, suspensionBehavior: .deliverImmediately)
     activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
       forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
     ) { [weak self] notification in
@@ -55,10 +46,8 @@ final class WorkerController {
   }
   func stop() async {
     stopping = true
-    if let previewObserver {
-      DistributedNotificationCenter.default().removeObserver(previewObserver)
-      self.previewObserver = nil
-    }
+    DistributedNotificationCenter.default().removeObserver(
+      self, name: PeekTestRequest.notificationName, object: root.path)
     if let activationObserver {
       NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
       self.activationObserver = nil
@@ -135,6 +124,13 @@ final class WorkerController {
   private func activationChanged(to bundle: String?) {
     guard !stopping, let latestSnapshot else { return }
     apply(snapshot: latestSnapshot, test: testRequest(), frontmostBundle: bundle)
+    writeDiagnostics()
+  }
+  @objc private func previewRequested() {
+    guard !stopping, let test = testRequest() else { return }
+    apply(
+      snapshot: latestSnapshot ?? "", test: test,
+      frontmostBundle: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
     writeDiagnostics()
   }
   private func apply(snapshot: String, test: PeekTestRequest?, frontmostBundle: String?) {
