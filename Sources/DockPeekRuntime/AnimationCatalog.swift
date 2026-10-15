@@ -5,6 +5,7 @@ import Foundation
 public final class AnimationCatalog {
   public private(set) var registry = AnimationRegistry()
   public private(set) var errors: [String] = []
+  public private(set) var installed: [String: URL] = [:]
   public let directory: URL
   private var fingerprint: [String] = []
   public init(root: URL) {
@@ -14,6 +15,7 @@ public final class AnimationCatalog {
     do {
       guard FileManager.default.fileExists(atPath: directory.path) else {
         registry = AnimationRegistry()
+        installed = [:]
         errors = []
         fingerprint = []
         return
@@ -31,18 +33,29 @@ public final class AnimationCatalog {
       guard next != fingerprint else { return }
       fingerprint = next
       registry = AnimationRegistry()
+      installed = [:]
       errors = []
       if files.count > 64 { errors.append("Only 64 installed animation plugins are supported.") }
       for file in files.prefix(64) {
-        do { try registry.register(Self.read(file)) } catch {
+        do {
+          let plugin = try Self.read(file)
+          try registry.register(plugin)
+          installed[plugin.descriptor.id] = file
+        } catch {
           errors.append("\(file.lastPathComponent): \(error.localizedDescription)")
         }
       }
     } catch {
       registry = AnimationRegistry()
+      installed = [:]
       errors = ["Could not load animation plugins: \(error.localizedDescription)"]
       fingerprint = []
     }
+  }
+  public func remove(_ id: String) throws {
+    guard let file = installed[id] else { throw CocoaError(.fileNoSuchFile) }
+    try FileManager.default.removeItem(at: file)
+    reload()
   }
   public func install(_ file: URL) throws -> KeyframeAnimation {
     let plugin = try Self.read(file)

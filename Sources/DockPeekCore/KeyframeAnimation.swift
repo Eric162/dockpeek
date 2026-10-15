@@ -59,13 +59,14 @@ public struct AnimationScalar: Codable, Sendable {
     return choices == nil
   }
   private static let contextBindings: Set<String> = [
-    "width", "height", "unreadCount", "hasUnread", "direction", "entering",
+    "width", "height", "screenTopOffset", "unreadCount", "hasUnread", "direction", "entering",
   ]
   func resolve(in context: AnimationContext, settings: [String: AnimationValue]) -> Double {
     let input: Double
     switch binding {
     case "width": input = context.finalFrame.width
     case "height": input = context.finalFrame.height
+    case "screenTopOffset": input = context.screen.maxY - context.finalFrame.minY
     case "unreadCount": input = Double(context.unreadCount ?? 0)
     case "hasUnread": input = context.hasUnread ? 1 : 0
     case "entering": input = context.stage == .entry ? 1 : 0

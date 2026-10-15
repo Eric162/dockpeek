@@ -52,6 +52,10 @@ enum AnimationPrompt {
     (1 entry / 0 dismissal), setting.ID. Toggle settings bind as 0/1. Choice bindings need
     a complete numeric map: {"binding":"setting.direction","choices":{"up":0,"down":8}}.
     The panel is 128 points square, containing a 54-point icon and its host-rendered badge.
+    screenTopOffset is screen.maxY minus the final panel origin Y. To drop from the top
+    of the peek's display, use travel 1 and y {"binding":"screenTopOffset"} at time 0,
+    then travel 1 and y 0 at time 1. This starts the panel just above the top edge and
+    works on different display sizes and positions; height is only the panel height.
 
     Keep JSON under 64 KiB, with 2–256 keyframes, at most 16 settings and 16 choices each.
     All numbers must be finite. Keep opacity 0–1, squash 0.1–4, rotation within 50 turns,

@@ -135,7 +135,8 @@ struct AnimationPluginTests {
       "duration": .number(2), "bounce": .toggle(true), "direction": .choice("down"),
     ]
     for (binding, expected) in [
-      ("width", 128.0), ("height", 128), ("unreadCount", 4), ("hasUnread", 1), ("direction", 1),
+      ("width", 128.0), ("height", 128), ("screenTopOffset", 1130),
+      ("unreadCount", 4), ("hasUnread", 1), ("direction", 1),
       ("setting.duration", 2), ("setting.bounce", 1),
     ] {
       let expression = scalar(1, binding: binding, multiplier: 2)
@@ -351,6 +352,27 @@ extension AnimationPluginTests {
   }
 
   @Test
+  func topEntryAnchorsToItsDisplayEvenWhenInterrupted() throws {
+    let manifest = #"""
+      {"version":1,"descriptor":{"id":"test.top","name":"Top","stages":["entry"],
+      "settings":[{"id":"duration","name":"Duration","kind":"number","defaultValue":1,"minimum":0.1,"maximum":15}]},
+      "keyframes":[
+      {"time":0,"curve":"linear","travel":1,"x":0,"y":{"binding":"screenTopOffset"},"angle":0,"squash":1,"opacity":1},
+      {"time":1,"curve":"easeOut","travel":1,"x":0,"y":0,"angle":0,"squash":1,"opacity":1}]}
+      """#
+    let plugin = try KeyframeAnimation.decode(Data(manifest.utf8))
+    for top in [-1080.0, 0, 2160] {
+      let screen = CGRect(x: -1920, y: top - 1080, width: 1920, height: 1080)
+      let final = CGRect(x: -900, y: top - 1130, width: 128, height: 128)
+      let context = AnimationContext(
+        stage: .entry, finalFrame: final, screen: screen,
+        initial: Pose(point: CGPoint(x: -900, y: top - 600)), badge: "4")
+      #expect(abs(plugin.frame(in: context, progress: 0, settings: [:]).point.y - top) < 0.000001)
+      #expect(plugin.frame(in: context, progress: 1, settings: [:]).point == final.origin)
+    }
+  }
+
+  @Test
   func catalogInstallsAndRemovesPlugins() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -365,6 +387,19 @@ extension AnimationPluginTests {
     #expect(catalog.errors.isEmpty)
     #expect(catalog.registry.plugin(id: "test.fade", stage: .entry) != nil)
     #expect(throws: CocoaError.self) { try catalog.install(source) }
+    #expect(catalog.installed["slide"] == nil)
+    #expect(throws: CocoaError.self) { try catalog.remove("slide") }
+    #expect(throws: CocoaError.self) { try catalog.remove("../source") }
+    let file = try #require(catalog.installed["test.fade"])
+    let renamed = file.deletingLastPathComponent().appendingPathComponent("renamed.json")
+    try FileManager.default.moveItem(at: file, to: renamed)
+    catalog.reload()
+    try catalog.remove("test.fade")
+    #expect(!FileManager.default.fileExists(atPath: renamed.path))
+    #expect(FileManager.default.fileExists(atPath: source.path))
+    #expect(catalog.installed.isEmpty)
+    #expect(catalog.registry.plugin(id: "test.fade", stage: .entry) == nil)
+    _ = try catalog.install(source)
     try Data("bad".utf8).write(to: catalog.directory.appendingPathComponent("bad.json"))
     catalog.reload()
     #expect(catalog.errors.count == 1)

@@ -74,6 +74,51 @@ struct SettingsTests {
 
   @MainActor
   @Test
+  func removingAnAnimationPreservesOtherDraftChangesAndUpdatesSavedSelections() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let file = root.appendingPathComponent("peek-config.json")
+    var saved = Configuration()
+    let id = "example.fade"
+    saved.entryAnimation = AnimationIdentifier(rawValue: id)
+    saved.dismissAnimation = AnimationIdentifier(rawValue: id)
+    saved.entrySettings[id] = ["duration": .number(1)]
+    saved.dismissalSettings[id] = ["duration": .number(2)]
+    try JSONEncoder().encode(saved).write(to: file)
+    let model = SettingsModel(root: root)
+    let source = URL(fileURLWithPath: "docs/examples/fade.json")
+    _ = try model.animations.install(source)
+    model.config.peekFraction = 0.8
+    model.config.entryAnimation = .tumble
+    model.removeAnimation(id)
+    #expect(!model.error)
+    #expect(model.isDirty)
+    #expect(model.config.peekFraction == 0.8)
+    #expect(model.config.entryAnimation == .tumble)
+    #expect(model.config.dismissAnimation == .slide)
+    #expect(model.config.entrySettings[id] == nil && model.config.dismissalSettings[id] == nil)
+    let updated = try JSONDecoder().decode(Configuration.self, from: Data(contentsOf: file))
+    #expect(updated.entryAnimation == .slide && updated.dismissAnimation == .slide)
+    #expect(updated.peekFraction == saved.peekFraction)
+    #expect(updated.entrySettings[id] == nil && updated.dismissalSettings[id] == nil)
+    #expect(model.animations.installed.isEmpty)
+    #expect(FileManager.default.fileExists(atPath: source.path))
+    let bytes = try Data(contentsOf: file)
+    model.removeAnimation("slide")
+    #expect(model.error)
+    #expect(try Data(contentsOf: file) == bytes)
+    _ = try model.animations.install(source)
+    let installed = try #require(model.animations.installed[id])
+    try FileManager.default.removeItem(at: file)
+    try FileManager.default.createDirectory(at: file, withIntermediateDirectories: true)
+    model.removeAnimation(id)
+    #expect(model.error)
+    #expect(FileManager.default.fileExists(atPath: installed.path))
+  }
+
+  @MainActor
+  @Test
   func copiedAnimationPromptContainsAnInstallableExample() throws {
     let plugin = try KeyframeAnimation.decode(Data(AnimationPrompt.example.utf8))
     #expect(plugin.descriptor.id == "custom.slide")

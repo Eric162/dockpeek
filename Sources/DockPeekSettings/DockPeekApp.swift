@@ -149,12 +149,39 @@ final class SettingsModel: ObservableObject {
       self.error = true
     }
   }
+  func removeAnimation(_ id: String) {
+    do {
+      animations.reload()
+      guard animations.installed[id] != nil else { throw CocoaError(.fileNoSuchFile) }
+      let original = try Data(contentsOf: configURL)
+      var saved = try JSONDecoder().decode(Configuration.self, from: original)
+      saved.forgetAnimation(id)
+      let encoder = JSONEncoder()
+      encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+      try encoder.encode(saved).write(to: configURL, options: .atomic)
+      do {
+        try animations.remove(id)
+      } catch {
+        try original.write(to: configURL, options: .atomic)
+        throw error
+      }
+      config.forgetAnimation(id)
+      savedConfig = saved
+      animationRevision += 1
+      message = "Animation removed. Other unsaved changes are preserved."
+      error = false
+    } catch {
+      message = "Could not remove animation: \(error.localizedDescription)"
+      self.error = true
+    }
+  }
 }
 
 struct SettingsView: View {
   @ObservedObject var model: SettingsModel
   @ObservedObject var background: BackgroundService
   @Environment(\.scenePhase) private var scenePhase
+  @State private var animationToRemove: AnimationDescriptor?
   var body: some View {
     VStack(spacing: 0) {
       Form {
@@ -213,6 +240,21 @@ struct SettingsView: View {
             Slider(value: $model.config.peekFraction, in: 0.1...1)
             Text("\(Int(model.config.peekFraction * 100))%").monospacedDigit().frame(width: 40)
           }
+          if !model.animations.installed.isEmpty {
+            DisclosureGroup("Installed animations") {
+              ForEach(
+                model.animations.registry.plugins.map(\.descriptor).filter {
+                  model.animations.installed[$0.id] != nil
+                }
+              ) { plugin in
+                HStack {
+                  Text(plugin.name)
+                  Spacer()
+                  Button("Remove…", role: .destructive) { animationToRemove = plugin }
+                }
+              }
+            }
+          }
           AnimationSettingsView(model: model, stage: .entry)
           AnimationSettingsView(model: model, stage: .dismissal)
           HStack {
@@ -240,6 +282,15 @@ struct SettingsView: View {
         Button("Apply") { model.apply() }.keyboardShortcut(.defaultAction).disabled(!model.isDirty)
       }.padding()
     }.frame(minWidth: 470, minHeight: 840)
+      .alert(item: $animationToRemove) { plugin in
+        Alert(
+          title: Text("Remove \(plugin.name)?"),
+          message: Text(
+            "Selected entry or dismissal animations will switch to Slide. Other unsaved changes are preserved."
+          ),
+          primaryButton: .destructive(Text("Remove")) { model.removeAnimation(plugin.id) },
+          secondaryButton: .cancel())
+      }
       .task {
         await background.migrateLegacyAgent()
         background.prepare()

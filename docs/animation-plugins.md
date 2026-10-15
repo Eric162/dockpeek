@@ -5,6 +5,9 @@ or Dismissal, adjust its generated controls, then Apply. Files live in
 `~/Library/Application Support/Dock Peek/Animations/`. Installing a plugin does
 not activate unsaved settings. A plugin can support entry, dismissal, or both.
 The [Fade and lift example](examples/fade.json) demonstrates all three setting types.
+Test Dock Peek previews draft settings without saving them. Under **Installed animations**,
+choose **Remove…** to uninstall a plugin. A selected plugin falls back to Slide in both
+saved and draft settings; other unsaved changes are preserved. Built-ins cannot be removed.
 
 Slide and Tumble are native built-in plugins registered through the same
 `AnimationPlugin` interface. Slide supports both stages; Tumble supports entry.
@@ -52,6 +55,7 @@ The formula is `value + input * multiplier`; omitted value and multiplier are
 | Binding | Input |
 | --- | --- |
 | `width`, `height` | Final panel dimensions in points |
+| `screenTopOffset` | `screen.maxY - finalFrame.minY`, the offset from the final panel origin to its display's top edge |
 | `unreadCount` | Numeric unread count, or 0 when unknown |
 | `hasUnread` | 1 for an unread indicator, otherwise 0 |
 | `direction` | -1 when the nearest screen edge is left, otherwise 1 |
@@ -68,6 +72,10 @@ the screen. `angle` adds radians to the initial rotation as it unwinds with trav
 `squash` stretches vertically and inversely horizontally. `opacity` ranges 0–1.
 The host keeps ownership of the icon, badge rendering, input, and application launch.
 Plugins animate the existing panel; they cannot replace its content.
+For an entry from the top of the display, set the first keyframe's `travel` to 1
+and `y` to `{"binding":"screenTopOffset"}`. End at `travel: 1`, `y: 0`.
+The initial panel is above the top edge, so the icon enters through that edge.
+Use `travel: 1` at the first frame to anchor it correctly even when interrupting a transition.
 
 ## Lifecycle and bounds
 

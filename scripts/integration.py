@@ -96,7 +96,7 @@ def run(app):
                                    'right-click', 'scroll', 'badge-change', 'dock-return',
                                    'probe-failure', 'probe-timeout', 'invalid-config', 'recovery',
                                    'plugin-entry', 'plugin-dismissal', 'plugin-timer-stop',
-                                   'plugin-removal', 'plugin-recovery']
+                                   'plugin-removal', 'plugin-recovery', 'plugin-screen-top-entry']
                     os.kill(pid, signal.SIGTERM)
                     wait_for(lambda: not alive(pid), 'worker drained shutdown')
                     assert 'STOPPED worker; probe drained' in text()
@@ -243,6 +243,21 @@ def verify_interactions(root, text):
     atomic(animations / 'example.fade.json', json.dumps(example))
     entered = text().count('ENTER')
     wait_for(lambda: text().count('ENTER') > entered, 'reinstalled plugin recovers')
+    top = json.loads(json.dumps(example))
+    top['descriptor'].update(id='example.top', name='Screen top', stages=['entry'])
+    top['keyframes'][0].update(travel=1, y={'binding': 'screenTopOffset'})
+    atomic(animations / 'example.top.json', json.dumps(top))
+    atomic(root / 'snapshot.txt', snapshot(''))
+    wait_for(lambda: diagnostics().get('visible') == 0, 'clear badge before screen-top entry')
+    config.update(entryAnimation='example.top', dismissAnimation='slide')
+    atomic(root / 'peek-config.json', json.dumps(config))
+    settled = text().count('SETTLED')
+    ticks = diagnostics()['animationTicks']
+    atomic(root / 'snapshot.txt', snapshot('14'))
+    wait_for(lambda: 'ENTER Dock Peek: TextEdit style=example.top' in text(), 'screen-top plugin enters')
+    wait_for(lambda: text().count('SETTLED') > settled, 'screen-top plugin settles')
+    wait_for(lambda: diagnostics().get('animationTimerActive') == 0, 'screen-top timer stops')
+    assert diagnostics()['animationTicks'] > ticks, 'Screen-top animation did not run'
 
 
 def main():

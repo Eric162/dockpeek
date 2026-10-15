@@ -47,6 +47,12 @@ public struct Configuration: Codable, Equatable, Sendable {
   }
 
   public init() {}
+  public mutating func forgetAnimation(_ id: String) {
+    if entryAnimation.rawValue == id { entryAnimation = .slide }
+    if dismissAnimation.rawValue == id { dismissAnimation = .slide }
+    entrySettings.removeValue(forKey: id)
+    dismissalSettings.removeValue(forKey: id)
+  }
   enum CodingKeys: String, CodingKey {
     case enabled, allowedApps, peekFraction, entryAnimation, dismissAnimation
     case slideDuration, dismissDuration, tumbleDuration, scrollDismisses, rightClickDismisses
