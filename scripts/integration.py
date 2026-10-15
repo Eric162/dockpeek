@@ -132,6 +132,16 @@ def verify_interactions(root, text):
     atomic(root / 'snapshot.txt', snapshot('4'))
     wait_for(lambda: diagnostics().get('probeReads', 0) > reads + 1, 'badge observed while active')
     assert diagnostics()['visible'] == 0, 'Active app peek reappeared on badge change'
+    notifier = ('import Foundation\n'
+                'DistributedNotificationCenter.default().postNotificationName('
+                'Notification.Name("local.dock-peek.test-request"), '
+                'object: CommandLine.arguments[1], userInfo: nil, deliverImmediately: true)\n'
+                'RunLoop.current.run(until: Date().addingTimeInterval(0.1))')
+    notifier_source = root / 'notify-preview.swift'
+    notifier_source.write_text(notifier)
+    notifier_binary = root / 'notify-preview'
+    subprocess.run(['swiftc', '-swift-version', '6', '-warnings-as-errors', str(notifier_source),
+                    '-o', str(notifier_binary)], check=True, timeout=60)
     atomic(root / 'probe-mode', 'hang')
     time.sleep(1.1)
     saved = (root / 'peek-config.json').read_bytes()
@@ -144,12 +154,7 @@ def verify_interactions(root, text):
                           'entrySettings': {'slide': {'duration': 0.15}}},
     }
     atomic(root / 'test-request.json', json.dumps(preview))
-    notifier = ('import Foundation\n'
-                'DistributedNotificationCenter.default().postNotificationName('
-                'Notification.Name("local.dock-peek.test-request"), '
-                'object: CommandLine.arguments[1], userInfo: nil, deliverImmediately: true)\n'
-                'RunLoop.current.run(until: Date().addingTimeInterval(0.1))')
-    subprocess.run(['swift', '-e', notifier, str(root)], check=True, timeout=15)
+    subprocess.run([str(notifier_binary), str(root)], check=True, timeout=5)
     wait_for(lambda: diagnostics().get('visible') == 1,
              'test preview appears without waiting for the hanging probe', timeout=2)
     assert 'ENTER Dock Peek: TextEdit style=slide' in text()[offset:], 'Preview ignored draft entry'
@@ -163,7 +168,7 @@ def verify_interactions(root, text):
     preview['token'] = str(uuid.uuid4())
     preview['configuration']['entryAnimation'] = 'none'
     atomic(root / 'test-request.json', json.dumps(preview))
-    subprocess.run(['swift', '-e', notifier, str(root)], check=True, timeout=15)
+    subprocess.run([str(notifier_binary), str(root)], check=True, timeout=5)
     wait_for(lambda: 'ENTER Dock Peek: TextEdit style=none' in text()[offset:], 'retest restarts with new draft')
     assert (root / 'peek-config.json').read_bytes() == saved, 'Retest saved draft settings'
     (root / 'test-request.json').unlink()
