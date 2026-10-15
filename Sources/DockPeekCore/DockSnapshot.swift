@@ -20,7 +20,8 @@ public struct Tile: Sendable {
   snapshot.components(separatedBy: "    ELEMENT\n").compactMap { section -> Tile? in
     guard let name = section.firstMatch(of: #/AXTitle=([^\n]+)/#)?.1,
       let path = section.firstMatch(of: #/AXURL=([^\n]+)/#)?.1,
-      let url = URL(string: String(path)), let bundle = Bundle(url: url)?.bundleIdentifier,
+      let url = URL(string: String(path)), url.isFileURL,
+      url.pathExtension.lowercased() == "app", let bundle = Bundle(url: url)?.bundleIdentifier,
       let frame = section.firstMatch(
         of: #/AXFrame=.*value = x:([0-9.-]+) y:([0-9.-]+) w:([0-9.-]+) h:([0-9.-]+)/#),
       let x = Double(frame.1), let y = Double(frame.2), let width = Double(frame.3),

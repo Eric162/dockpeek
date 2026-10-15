@@ -5,6 +5,23 @@ import Testing
 @testable import DockPeekCore
 
 struct CoreTests {
+  @Test
+  func dockFoldersAreExcludedEvenWhenTheyContainBundleMetadata() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let contents = root.appendingPathComponent("Downloads.bundle/Contents")
+    try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let info = try PropertyListSerialization.data(
+      fromPropertyList: ["CFBundleIdentifier": "test.folder"], format: .xml, options: 0)
+    try info.write(to: contents.appendingPathComponent("Info.plist"))
+    let url = contents.deletingLastPathComponent()
+    #expect(Bundle(url: url)?.bundleIdentifier == "test.folder")
+    #expect(
+      tiles(
+        "    ELEMENT\nAXTitle=Downloads\nAXURL=\(url.absoluteString)\nAXFrame=value = x:1 y:2 w:67 h:83\n"
+      )
+      .isEmpty)
+  }
   @Test(arguments: [0.0, -0.1, 1.1, Double.infinity, Double.nan])
   func testInvalidPeekFractions(_ fraction: Double) {
     var config = Configuration()
