@@ -99,13 +99,14 @@ struct WorkerStateTests {
     #expect(state.update(configuration: disallowed, observations: [observation()]).isEmpty)
     #expect(state.update(configuration: config, observations: [observation()]).count == 1)
   }
-  @Test
-  func previewRemainsVisibleWhileSettingsIsActive() {
+  @Test(arguments: [false, true])
+  func previewRemainsVisibleWhileSettingsIsActive(dockVisible: Bool) {
     var state = WorkerState()
     let request = PeekTestRequest(
       bundleIdentifier: "test.app", applicationPath: "/Test.app", now: now)
     let result = state.update(
-      configuration: config, observations: [observation(active: true)], test: request, now: now)
+      configuration: config, observations: [observation(covered: dockVisible, active: true)],
+      test: request, now: now)
     #expect(result["test.app"]?.badge == "3")
     #expect(
       state.update(

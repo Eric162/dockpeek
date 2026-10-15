@@ -74,8 +74,8 @@ public struct WorkerState: Sendable {
     }
     if dismissed[observation.bundle] != key { dismissed.removeValue(forKey: observation.bundle) }
     guard dismissed[observation.bundle] != key else { return }
-    if observation.dockVisible
-      || (observation.appActive && test?.bundleIdentifier != observation.bundle)
+    if test?.bundleIdentifier != observation.bundle
+      && (observation.dockVisible || observation.appActive)
     {
       covered[observation.bundle] = badge
       return

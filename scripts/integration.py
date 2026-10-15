@@ -138,6 +138,10 @@ def verify_interactions(root, text):
         'token': str(uuid.uuid4()), 'expiresAt': time.time() - 978307200 + 10,
     }))
     wait_for(lambda: diagnostics().get('visible') == 1, 'test preview appears while its app is active')
+    command(dockVisibility='visible', frontmostBundle='com.apple.TextEdit')
+    reads = diagnostics()['probeReads']
+    wait_for(lambda: diagnostics().get('probeReads', 0) > reads + 1, 'preview observed with visible Dock')
+    assert diagnostics()['visible'] == 1, 'Visible Dock suppressed the preview'
     (root / 'test-request.json').unlink()
     wait_for(lambda: diagnostics().get('visible') == 0, 'ordinary active-app badge stays hidden after preview')
     command(dockVisibility='hidden', frontmostBundle='other.app')
